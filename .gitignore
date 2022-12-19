@@ -1,6 +1,11 @@
+# workspace stuff
+.vscode/
+
 # code output and run folders
 runs/
 mlruns/
+logs/
+data/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
