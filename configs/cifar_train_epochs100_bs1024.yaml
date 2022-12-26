@@ -13,7 +13,6 @@ log_freq: 48
 lr: 4.0
 lr_schedule: warmup-anneal
 multiplier: 2
-name: 'reproduce-cifar10'
 node_rank: 0
 opt: lars
 problem: sim-clr
@@ -27,6 +26,6 @@ tmp: false
 verbose: true
 warmup: 0.01
 weight_decay: 1.0e-06
+ngpus: 2
 workers: 2
 world_size: 1
-name: 'cifar-test-run'

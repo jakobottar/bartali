@@ -8,12 +8,12 @@ import torchvision.transforms.functional as FT
 from PIL import Image
 
 
-if 'DATA_ROOT' in os.environ:
-    DATA_ROOT = os.environ['DATA_ROOT']
+if "DATA_ROOT" in os.environ:
+    DATA_ROOT = os.environ["DATA_ROOT"]
 else:
-    DATA_ROOT = './data'
+    DATA_ROOT = "./data"
 
-IMAGENET_PATH = './data/imagenet/raw-data'
+IMAGENET_PATH = "./data/imagenet/raw-data"
 
 
 def pad(img, size, mode):
@@ -22,39 +22,57 @@ def pad(img, size, mode):
     return np.pad(img, [(size, size), (size, size), (0, 0)], mode)
 
 
-mean = {
-    'mnist': (0.1307,),
-    'cifar10': (0.4914, 0.4822, 0.4465)
-}
+mean = {"mnist": (0.1307,), "cifar10": (0.4914, 0.4822, 0.4465)}
 
-std = {
-    'mnist': (0.3081,),
-    'cifar10': (0.2470, 0.2435, 0.2616)
-}
+std = {"mnist": (0.3081,), "cifar10": (0.2470, 0.2435, 0.2616)}
 
 
 class GaussianBlur(object):
     """
-        PyTorch version of
-        https://github.com/google-research/simclr/blob/244e7128004c5fd3c7805cf3135c79baa6c3bb96/data_util.py#L311
+    PyTorch version of
+    https://github.com/google-research/simclr/blob/244e7128004c5fd3c7805cf3135c79baa6c3bb96/data_util.py#L311
     """
+
     def gaussian_blur(self, image, sigma):
         image = image.reshape(1, 3, 224, 224)
-        radius = np.int(self.kernel_size/2)
+        radius = np.int(self.kernel_size / 2)
         kernel_size = radius * 2 + 1
         x = np.arange(-radius, radius + 1)
 
-        blur_filter = np.exp(
-              -np.power(x, 2.0) / (2.0 * np.power(np.float(sigma), 2.0)))
+        blur_filter = np.exp(-np.power(x, 2.0) / (2.0 * np.power(np.float(sigma), 2.0)))
         blur_filter /= np.sum(blur_filter)
 
-        conv1 = torch.nn.Conv2d(3, 3, kernel_size=(kernel_size, 1), groups=3, padding=[kernel_size//2, 0], bias=False)
+        conv1 = torch.nn.Conv2d(
+            3,
+            3,
+            kernel_size=(kernel_size, 1),
+            groups=3,
+            padding=[kernel_size // 2, 0],
+            bias=False,
+        )
         conv1.weight = torch.nn.Parameter(
-            torch.Tensor(np.tile(blur_filter.reshape(kernel_size, 1, 1, 1), 3).transpose([3, 2, 0, 1])))
+            torch.Tensor(
+                np.tile(blur_filter.reshape(kernel_size, 1, 1, 1), 3).transpose(
+                    [3, 2, 0, 1]
+                )
+            )
+        )
 
-        conv2 = torch.nn.Conv2d(3, 3, kernel_size=(1, kernel_size), groups=3, padding=[0, kernel_size//2], bias=False)
+        conv2 = torch.nn.Conv2d(
+            3,
+            3,
+            kernel_size=(1, kernel_size),
+            groups=3,
+            padding=[0, kernel_size // 2],
+            bias=False,
+        )
         conv2.weight = torch.nn.Parameter(
-            torch.Tensor(np.tile(blur_filter.reshape(kernel_size, 1, 1, 1), 3).transpose([3, 2, 1, 0])))
+            torch.Tensor(
+                np.tile(blur_filter.reshape(kernel_size, 1, 1, 1), 3).transpose(
+                    [3, 2, 1, 0]
+                )
+            )
+        )
 
         res = conv2(conv1(image))
         assert res.shape == image.shape
@@ -72,7 +90,10 @@ class GaussianBlur(object):
             return img
 
     def __repr__(self):
-        return self.__class__.__name__ + '(kernel_size={0}, p={1})'.format(self.kernel_size, self.p)
+        return self.__class__.__name__ + "(kernel_size={0}, p={1})".format(
+            self.kernel_size, self.p
+        )
+
 
 class CenterCropAndResize(object):
     """Crops the given PIL Image at the center.
@@ -99,12 +120,14 @@ class CenterCropAndResize(object):
         img = FT.resize(
             FT.center_crop(img, (h, w)),
             (self.size, self.size),
-            interpolation=PIL.Image.BICUBIC
+            interpolation=PIL.Image.BICUBIC,
         )
         return img
 
     def __repr__(self):
-        return self.__class__.__name__ + '(proportion={0}, size={1})'.format(self.proportion, self.size)
+        return self.__class__.__name__ + "(proportion={0}, size={1})".format(
+            self.proportion, self.size
+        )
 
 
 class Clip(object):
@@ -131,11 +154,12 @@ class ContinousSampler(torch.utils.data.sampler.Sampler):
             for batch in self.base_sampler:
                 yield batch
                 cur_iter += 1
-                if cur_iter >= self.n_iterations: return
+                if cur_iter >= self.n_iterations:
+                    return
 
     def __len__(self):
         return self.n_iterations
-    
+
     def set_epoch(self, epoch):
         self.base_sampler.set_epoch(epoch)
 
@@ -143,12 +167,10 @@ class ContinousSampler(torch.utils.data.sampler.Sampler):
 def get_color_distortion(s=1.0):
     # s is the strength of color distortion.
     # given from https://arxiv.org/pdf/2002.05709.pdf
-    color_jitter = transforms.ColorJitter(0.8*s, 0.8*s, 0.8*s, 0.2*s)
+    color_jitter = transforms.ColorJitter(0.8 * s, 0.8 * s, 0.8 * s, 0.2 * s)
     rnd_color_jitter = transforms.RandomApply([color_jitter], p=0.8)
     rnd_gray = transforms.RandomGrayscale(p=0.2)
-    color_distort = transforms.Compose([
-        rnd_color_jitter,
-        rnd_gray])
+    color_distort = transforms.Compose([rnd_color_jitter, rnd_gray])
     return color_distort
 
 

@@ -6,7 +6,8 @@ import torch
 import torch.backends.cudnn as cudnn
 import models
 import mlflow
-import myexman
+import namegenerator
+import configargparse
 from utils import utils
 import sys
 import torch.multiprocessing as mp
@@ -23,8 +24,8 @@ def add_learner_params(parser):
     )
     parser.add_argument(
         "--name",
-        default="",
-        help="Name for the experiment",
+        default="random",
+        help="Name for the experiment (default: random name)",
     )
     parser.add_argument(
         "--ckpt", default="", help="Optional checkpoint to init the model."
@@ -95,10 +96,19 @@ def add_learner_params(parser):
         type=int,
         help="the number of nodes (scripts launched)",
     )
+    parser.add_argument(
+        "--ngpus",
+        default=2,
+        type=int,
+        help="the number of gpus to use",
+    )
 
 
 def main():
-    parser = myexman.ExParser(file=os.path.basename(__file__))
+    # parse args/config file
+    parser = configargparse.ArgumentParser(
+        args_for_setting_config_path=("--config",), ignore_unknown_config_file_keys=True
+    )
     add_learner_params(parser)
 
     is_help = False
@@ -106,7 +116,7 @@ def main():
         sys.argv.pop(sys.argv.index("--help" if "--help" in sys.argv else "-h"))
         is_help = True
 
-    args, _ = parser.parse_known_args(log_params=False)
+    args, _ = parser.parse_known_args()
 
     models.REGISTERED_MODELS[args.problem].add_model_hparams(parser)
 
@@ -115,7 +125,18 @@ def main():
 
     args = parser.parse_args(namespace=args)
 
-    if args.data == "imagenet" and args.aug == False:
+    # set name
+    if args.name == "random":
+        args.name = namegenerator.gen()
+
+    # make runs folder
+    try:
+        os.mkdir(f"runs/{args.name}")
+    except FileExistsError:
+        pass
+    args.root = f"runs/{args.name}"
+
+    if args.data == "imagenet" and not args.aug:
         raise Exception("ImageNet models should be eval with aug=True!")
 
     if args.seed != -1:
@@ -123,30 +144,24 @@ def main():
         torch.manual_seed(args.seed)
         cudnn.deterministic = True
 
-    mlflow.set_tracking_uri("http://tularosa.sci.utah.edu:5000")
-    mlflow.set_experiment("bartali")
-    with mlflow.start_run(run_name=args.name):
+    args.gpu = 0
+    # TODO: move to DDP
+    args.number_of_processes = 1
+    if args.dist == "ddp":
+        # add additional argument to be able to retrieve # of processes from logs
+        # and don't change initial arguments to reproduce the experiment
+        args.number_of_processes = args.world_size * args.ngpus
         mlflow.log_params(vars(args))
 
-        args.gpu = 0
-        # TODO: configure this, and make it pick custom gpus
-        ngpus = 2
-        args.number_of_processes = 1
-        if args.dist == "ddp":
-            # add additional argument to be able to retrieve # of processes from logs
-            # and don't change initial arguments to reproduce the experiment
-            args.number_of_processes = args.world_size * ngpus
-            parser.update_params_file(args)
-
-            args.world_size *= ngpus
-            mp.spawn(
-                main_worker,
-                nprocs=ngpus,
-                args=(ngpus, args),
-            )
-        else:
-            parser.update_params_file(args)
-            main_worker(args.gpu, -1, args)
+        args.world_size *= args.ngpus
+        mp.spawn(
+            main_worker,
+            nprocs=args.ngpus,
+            args=(args.ngpus, args),
+        )
+    else:
+        mlflow.log_params(vars(args))
+        main_worker(args.gpu, -1, args)
 
 
 def main_worker(gpu, ngpus, args):
@@ -155,6 +170,11 @@ def main_worker(gpu, ngpus, args):
         "val_time": ".3f",
         "lr": ".1e",
     }
+
+    mlflow.set_tracking_uri("http://tularosa.sci.utah.edu:5000")
+    mlflow.set_experiment("bartali")
+    mlflow.start_run(run_name=args.name)
+    mlflow.log_params(vars(args))
 
     args.gpu = gpu
     torch.cuda.set_device(gpu)
@@ -249,7 +269,7 @@ def main_worker(gpu, ngpus, args):
                 model.train()
 
                 test_logs = utils.agg_all_metrics(test_logs, prefix="test")
-                mlflow.log_metrics(train_logs, step=cur_iter)
+                mlflow.log_metrics(test_logs, step=cur_iter)
 
             it_time += time.time() - start_time
 

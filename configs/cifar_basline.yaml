@@ -1,0 +1,15 @@
+arch: resnet18
+name: random
+dataset: cifar
+dataset_location: /scratch/jakobj/cifar
+batch_size: 256
+workers: 2
+lr_schedule: warmup-anneal
+opt: lars
+epochs: 2
+warmup: 0
+lr: 0.1
+weight_decay: 1.0e-4
+eval_only: false
+seed: -1
+gpus: [0, 1]
