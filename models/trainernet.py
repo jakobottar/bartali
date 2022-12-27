@@ -1,7 +1,7 @@
 """
 replacement for ResNet class, with built-in trainers and testers
 """
-from typing import Tuple
+from typing import Tuple, OrderedDict
 from tqdm import tqdm
 import shutil
 
@@ -15,23 +15,43 @@ class Trainer:
     def __init__(self) -> None:
         self.model = nn.Module()
         self.loss = nn.Module()
+        self.optimizer = None
+        self.scheduler = None
         self.device = "cpu"
 
-    def eval(self):
+    def eval(self) -> None:
         self.model.eval()
 
-    def train(self):
+    def train(self) -> None:
         self.model.train()
 
-    def to(self, device):
+    def to(self, device) -> None:
         self.device = device
         self.model.to(device)
 
-    def set_up_optimizers(self, lr=0.01, lr_gamma=0.97) -> None:
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
-        self.scheduler = torch.optim.lr_scheduler.ExponentialLR(
-            self.optimizer, gamma=lr_gamma
+    def get_ckpt(self) -> OrderedDict:
+        return self.model.state_dict()
+
+    def load_ckpt(self, model_state_dict) -> None:
+        self.model.load_state_dict(model_state_dict)
+
+    def set_up_optimizers(self, configs) -> None:
+        self.optimizer = torch.optim.Adam(
+            self.model.parameters(), lr=configs.lr, weight_decay=configs.weight_decay
         )
+        match configs.lr_schedule:
+            case "exponential":
+                self.scheduler = torch.optim.lr_scheduler.ExponentialLR(
+                    self.optimizer, gamma=configs.lr_gamma
+                )
+            case "cosine-anneal":
+                self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                    self.optimizer, configs.epochs
+                )
+            case _:
+                raise NotImplementedError(
+                    f"Could not find scheduler {configs.lr_schedule}."
+                )
 
     def set_up_loss(self) -> None:
         raise NotImplementedError("'set_up_loss' not reimplemented in child class.")
@@ -60,59 +80,3 @@ class Trainer:
 
     def test_epoch(self, dataloader) -> None:
         raise NotImplementedError("'test_epoch' not reimplemented in child class.")
-
-
-class ResNet(Trainer):
-    def __init__(self, model="resnet18") -> None:
-        super().__init__()
-
-        match model:
-            case "resnet18" | "18":
-                self.model = models.resnet18(weights="DEFAULT")
-            case "resnet50" | "50":
-                self.model = models.resnet50(weights="DEFAULT")
-            case _:
-                raise NotImplementedError(f"Cound not load model {model}.")
-
-    def set_up_loss(self):
-        self.loss = nn.CrossEntropyLoss()
-
-    def train_epoch(self, dataloader, verbose = True) -> dict:
-        self.train()
-
-        loader = iter(dataloader)
-        if verbose:
-            loader = tqdm(loader, ncols=shutil.get_terminal_size().columns)
-
-        train_loss = 0
-        for _, (value, target) in enumerate(loader):
-            value, target = value.to(self.device), target.to(self.device)
-            _, loss = self.train_step(value, target)
-
-            train_loss += loss.item()
-            if verbose:
-                loader.set_description(f"train loss: {loss.item():.4f}")
-
-        return {
-            "train_loss": train_loss / len(dataloader)
-        }
-
-    def test_epoch(self, dataloader, verbose = True) -> list:
-        self.eval()
-
-        loader = iter(dataloader)
-        if verbose:
-            loader = tqdm(loader, ncols=shutil.get_terminal_size().columns)
-
-        test_loss = 0
-        for _, (value, target) in enumerate(loader):
-            value, target = value.to(self.device), target.to(self.device)
-            _, loss = self.test_step(value, target)
-
-            test_loss += loss.item()
-            if verbose:
-                loader.set_description(f"test loss: {loss.item():.4f}")
-
-        return {
-            "test_loss": test_loss / len(dataloader)
-        }

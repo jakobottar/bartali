@@ -8,6 +8,7 @@ import namegenerator
 from collections import namedtuple
 import mlflow
 
+import torch
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 import models
@@ -40,18 +41,18 @@ if __name__ == "__main__":
     # set up data
     match configs.dataset:
         case "cifar":
+            transform = transforms.Compose(
+                [
+                    transforms.AutoAugment(policy=transforms.AutoAugmentPolicy.CIFAR10),
+                    transforms.ToTensor(),
+                ]
+            )
             train_dataset = datasets.CIFAR10(
-                "/scratch/jakobj/cifar",
-                train=True,
-                download=True,
-                transform=transforms.ToTensor(),
+                "/scratch/jakobj/cifar", train=True, download=True, transform=transform
             )
 
             test_dataset = datasets.CIFAR10(
-                "/scratch/jakobj/cifar",
-                train=True,
-                download=True,
-                transform=transforms.ToTensor(),
+                "/scratch/jakobj/cifar", train=True, download=True, transform=transform
             )
 
         case _:
@@ -71,13 +72,13 @@ if __name__ == "__main__":
     )
 
     # set up model
-    resnet = models.trainernet.ResNet(model="resnet18")
-    resnet.set_up_optimizers()
+    resnet = models.ResNet(model="resnet18")
+    resnet.set_up_optimizers(configs)
     resnet.set_up_loss()
     resnet.to("cuda")
 
     mlflow.set_tracking_uri("http://tularosa.sci.utah.edu:5000")
-    mlflow.set_experiment("merckx")
+    mlflow.set_experiment("bartali")
     with mlflow.start_run(run_name=NAME):
 
         for epoch in range(1, configs.epochs + 1):
@@ -86,5 +87,12 @@ if __name__ == "__main__":
             mlflow.log_metrics(train_stats, step=epoch)
             test_stats = resnet.test_epoch(test_dataloader)
             mlflow.log_metrics(test_stats, step=epoch)
+
+            mlflow.log_metric(
+                "learning_rate", resnet.scheduler.get_last_lr()[0], step=epoch
+            )
+            resnet.scheduler.step()
+
+            torch.save(resnet.get_ckpt(), f"runs/{NAME}/model.pth")
 
         print("done!")
