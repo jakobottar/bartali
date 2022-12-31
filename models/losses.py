@@ -31,8 +31,12 @@ def mean_cumulative_gain(logits, labels, k):
 def mean_average_precision(logits, labels, k):
     # TODO: not the fastest solution but looks fine
     argsort = torch.argsort(logits, dim=1, descending=True)
-    labels_to_sorted_idx = torch.sort(torch.gather(torch.argsort(argsort, dim=1), 1, labels), dim=1)[0] + 1
-    precision = (1 + torch.arange(k, device=logits.device).float()) / labels_to_sorted_idx
+    labels_to_sorted_idx = (
+        torch.sort(torch.gather(torch.argsort(argsort, dim=1), 1, labels), dim=1)[0] + 1
+    )
+    precision = (
+        1 + torch.arange(k, device=logits.device).float()
+    ) / labels_to_sorted_idx
     return precision.sum(1) / k
 
 
@@ -40,14 +44,15 @@ class NTXent(nn.Module):
     """
     Contrastive loss with distributed data parallel support
     """
+
     LARGE_NUMBER = 1e9
 
-    def __init__(self, tau=1., gpu=None, multiplier=2, distributed=False):
+    def __init__(self, tau=1.0, gpu=None, multiplier=2, distributed=False):
         super().__init__()
         self.tau = tau
         self.multiplier = multiplier
         self.distributed = distributed
-        self.norm = 1.
+        self.norm = 1.0
 
     def forward(self, z, get_map=False):
         n = z.shape[0]
@@ -77,20 +82,29 @@ class NTXent(nn.Module):
 
         # choose all positive objects for an example, for i it would be (i + k * n/m), where k=0...(m-1)
         m = self.multiplier
-        labels = (np.repeat(np.arange(n), m) + np.tile(np.arange(m) * n//m, n)) % n
+        labels = (np.repeat(np.arange(n), m) + np.tile(np.arange(m) * n // m, n)) % n
         # remove labels pointet to itself, i.e. (i, i)
         labels = labels.reshape(n, m)[:, 1:].reshape(-1)
 
         # TODO: maybe different terms for each process should only be computed here...
-        loss = -logprob[np.repeat(np.arange(n), m-1), labels].sum() / n / (m-1) / self.norm
+        loss = (
+            -logprob[np.repeat(np.arange(n), m - 1), labels].sum()
+            / n
+            / (m - 1)
+            / self.norm
+        )
 
         # zero the probability of identical pairs
-        pred = logprob.data.clone()
-        pred[np.arange(n), np.arange(n)] = -self.LARGE_NUMBER
-        acc = accuracy(pred, torch.LongTensor(labels.reshape(n, m-1)).to(logprob.device), m-1)
+        # pred = logprob.data.clone()
+        # pred[np.arange(n), np.arange(n)] = -self.LARGE_NUMBER
+        # acc = accuracy(pred, torch.LongTensor(labels.reshape(n, m-1)).to(logprob.device), m-1)
 
-        if get_map:
-            _map = mean_average_precision(pred, torch.LongTensor(labels.reshape(n, m-1)).to(logprob.device), m-1)
-            return loss, acc, _map
+        # if get_map:
+        #     _map = mean_average_precision(
+        #         pred,
+        #         torch.LongTensor(labels.reshape(n, m - 1)).to(logprob.device),
+        #         m - 1,
+        #     )
+        #     return loss, _map
 
-        return loss, acc
+        return loss
