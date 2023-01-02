@@ -3,12 +3,12 @@ name: random
 dataset: cifar
 dataset_location: /scratch/jakobj/cifar
 batch_size: 1024
-workers: 2
+workers: 4
 lr_schedule: cosine-anneal
-epochs: 150
+epochs: 1000
 lr: 1.
 weight_decay: 1.0e-4
 tau: 1.
 multiplier: 2
 seed: -1
-gpus: [0, 1]
+gpus: [3]

@@ -75,7 +75,7 @@ if __name__ == "__main__":
     simclr = models.SimCLR(backbone="resnet18")
     simclr.set_up_optimizers(configs)
     simclr.set_up_loss(configs)
-    simclr.to("cuda")
+    simclr.to(f"cuda:{configs.gpus[0]}")
 
     mlflow.set_tracking_uri("http://tularosa.sci.utah.edu:5000")
     mlflow.set_experiment("bartali")
