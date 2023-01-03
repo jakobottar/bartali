@@ -2,44 +2,35 @@
 baseline resnet model
 """
 import os
-import yaml
 import argparse
 import namegenerator
-from collections import namedtuple
 import mlflow
 
+
 import torch
+import torch.multiprocessing as mp
+import torch.distributed as dist
 from torch.utils.data import DataLoader
+from torch.utils.data.distributed import DistributedSampler
 from torchvision import datasets, transforms
+
 import models
+import utils
 
-if __name__ == "__main__":
-    # parse args/config file
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "-c", "--config", type=str, default=None, help="config file location"
-    )
-    args, _ = parser.parse_known_args()
 
-    # load yaml config file
-    with open(args.config, "r", encoding="utf-8") as file:
-        config_dict = yaml.safe_load(file)
+def setup(rank, world_size):
+    os.environ["MASTER_ADDR"] = "127.0.0.1"
+    os.environ["MASTER_PORT"] = "29500"
+    dist.init_process_group("nccl", rank=rank, world_size=world_size)
 
-    configs = namedtuple("ConfigStruct", config_dict.keys())(*config_dict.values())
 
-    if configs.name == "random":
-        NAME = "baseline-" + namegenerator.gen()
-    else:
-        NAME = "baseline-" + configs.name
+def cleanup():
+    dist.destroy_process_group()
 
-    print(f"Run name: {NAME}")
-    try:
-        os.mkdir(f"runs/{NAME}")
-    except FileExistsError as error:
-        pass
 
-    # set up data
-    match configs.dataset:
+def prepare_dataloaders(rank: int, world_size: int, dataset: str, batch_size: int):
+
+    match dataset:
         case "cifar":
             transform = transforms.Compose(
                 [
@@ -56,43 +47,103 @@ if __name__ == "__main__":
             )
 
         case _:
-            raise NotImplementedError(f"Cound not load dataset {configs.dataset}.")
+            raise NotImplementedError(f"Cound not load dataset {dataset}.")
+
+    train_sampler = DistributedSampler(
+        train_dataset, num_replicas=world_size, rank=rank, shuffle=True, drop_last=False
+    )
 
     train_dataloader = DataLoader(
         train_dataset,
-        batch_size=configs.batch_size,
-        shuffle=True,
-        num_workers=configs.workers,
+        batch_size=batch_size,
+        pin_memory=False,
+        drop_last=False,
+        num_workers=0,
+        sampler=train_sampler,
     )
+
+    test_sampler = DistributedSampler(
+        test_dataset, num_replicas=world_size, rank=rank, shuffle=False, drop_last=False
+    )
+
     test_dataloader = DataLoader(
         test_dataset,
-        batch_size=configs.batch_size,
-        shuffle=False,
-        num_workers=configs.workers,
+        batch_size=batch_size,
+        pin_memory=False,
+        drop_last=False,
+        num_workers=0,
+        sampler=test_sampler,
+    )
+
+    return train_dataloader, test_dataloader
+
+
+def main(rank, world_size, configs):
+    print(f"model launched on gpu {rank}")
+    # setup the process groups
+    setup(rank, world_size)
+    head = rank == 0
+
+    # prepare the dataloader
+    train_dataloader, test_dataloader = prepare_dataloaders(
+        rank, world_size, dataset=configs.dataset, batch_size=configs.batch_size
     )
 
     # set up model
-    resnet = models.ResNet(model="resnet18")
-    resnet.set_up_optimizers(configs)
+    resnet = models.ResNet(configs).to_ddp(rank)
+    resnet.set_up_optimizers()
     resnet.set_up_loss()
-    resnet.to("cuda")
 
+    # TODO: set up head to gather/log metrics
     mlflow.set_tracking_uri("http://tularosa.sci.utah.edu:5000")
     mlflow.set_experiment("bartali")
-    with mlflow.start_run(run_name=NAME):
+    with mlflow.start_run(run_name=configs.name):
 
         for epoch in range(1, configs.epochs + 1):
-            print(f"epoch {epoch} of {configs.epochs}")
-            train_stats = resnet.train_epoch(train_dataloader)
+            if head:
+                print(f"epoch {epoch} of {configs.epochs}")
+
+            train_stats = resnet.train_epoch(train_dataloader, verbose=False)
             mlflow.log_metrics(train_stats, step=epoch)
-            test_stats = resnet.test_epoch(test_dataloader)
+            test_stats = resnet.test_epoch(test_dataloader, verbose=False)
             mlflow.log_metrics(test_stats, step=epoch)
 
             mlflow.log_metric(
                 "learning_rate", resnet.scheduler.get_last_lr()[0], step=epoch
             )
-            resnet.scheduler.step()
 
-            torch.save(resnet.get_ckpt(), f"runs/{NAME}/model.pth")
+            if head:
+                resnet.scheduler.step()
+
+            # TODO: save checkpoint
 
         print("done!")
+
+    cleanup()
+
+
+if __name__ == "__main__":
+    # parse args/config file
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-c", "--config", type=str, default=None, help="config file location"
+    )
+    args, _ = parser.parse_known_args()
+
+    configs = utils.parse_config_file(args.config)
+
+    if configs.name == "random":
+        configs.name = "baseline-" + namegenerator.gen()
+    else:
+        configs.name = "baseline-" + configs.name
+
+    print(f"Run name: {configs.name}")
+    try:
+        os.mkdir(f"runs/{configs.name}")
+    except FileExistsError as error:
+        pass
+
+    world_size = torch.cuda.device_count()
+
+    # TODO: something is sitting on gpu0 for all procs, what is up with that?
+    mp.spawn(main, args=(world_size, configs), nprocs=world_size, join=True)

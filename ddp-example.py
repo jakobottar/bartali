@@ -85,14 +85,22 @@ def main(rank, world_size):
     for epoch in range(10):
         dataloader.sampler.set_epoch(epoch)
 
+        if rank == 0:
+            total_loss = 0
+
         for _, (value, target) in enumerate(dataloader):
             value, target = value.to(rank), target.to(rank)
 
             optimizer.zero_grad()
             pred = model(value)
             loss = loss_fn(pred, target)
+            if rank == 0:
+                total_loss += loss.item()
             loss.backward()
             optimizer.step()
+
+        if rank == 0:
+            print(total_loss / (len(dataloader)))
 
     cleanup()
 

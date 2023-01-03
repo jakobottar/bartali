@@ -9,16 +9,16 @@ from .trainernet import Trainer
 
 
 class ResNet(Trainer):
-    def __init__(self, model="resnet18") -> None:
-        super().__init__()
+    def __init__(self, configs) -> None:
+        super().__init__(configs)
 
-        match model:
+        match configs.arch:
             case "resnet18" | "18":
                 self.model = models.resnet18(weights="DEFAULT")
             case "resnet50" | "50":
                 self.model = models.resnet50(weights="DEFAULT")
             case _:
-                raise NotImplementedError(f"Cound not load model {model}.")
+                raise NotImplementedError(f"Cound not load model {configs.arch}.")
 
     def set_up_loss(self):
         self.loss = nn.CrossEntropyLoss()
