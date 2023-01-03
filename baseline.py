@@ -79,7 +79,7 @@ def prepare_dataloaders(rank: int, world_size: int, dataset: str, batch_size: in
 
 
 def main(rank, world_size, configs):
-    print(f"model launched on gpu {rank}")
+    print(f"model launched on gpu {configs.gpus[rank]}")
     # setup the process groups
     setup(rank, world_size)
     head = rank == 0
@@ -143,7 +143,7 @@ if __name__ == "__main__":
     except FileExistsError as error:
         pass
 
-    world_size = torch.cuda.device_count()
+    world_size = len(configs.gpus)
 
     # TODO: something is sitting on gpu0 for all procs, what is up with that?
     mp.spawn(main, args=(world_size, configs), nprocs=world_size, join=True)

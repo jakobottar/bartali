@@ -34,8 +34,8 @@ class Trainer:
 
     def to_ddp(self, rank):
         self.mode = "ddp"
-        self.device = rank
-        self.model = DDP(self.model.to(rank), device_ids=[rank])
+        self.device = self.configs.gpus[rank]
+        self.model = DDP(self.model.to(self.device), device_ids=[self.device])
         return self
 
     def get_ckpt(self) -> OrderedDict:
