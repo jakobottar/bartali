@@ -114,11 +114,14 @@ def main(rank, world_size, configs):
 
             if head:
                 resnet.scheduler.step()
+                torch.save(
+                    resnet.get_ckpt(), f"runs/{configs.name}/checkpoint-{epoch}.pth"
+                )
 
-            # TODO: save checkpoint
+        if head:
+            torch.save(resnet.get_ckpt(), f"runs/{configs.name}/model.pth")
 
-        print("done!")
-
+    print("done!")
     cleanup()
 
 
@@ -147,3 +150,9 @@ if __name__ == "__main__":
 
     # TODO: something is sitting on gpu0 for all procs, what is up with that?
     mp.spawn(main, args=(world_size, configs), nprocs=world_size, join=True)
+
+    singlemodel = models.ResNet(configs)
+    singlemodel.load_ckpt(
+        torch.load(f"runs/{configs.name}/model.pth", map_location="cpu")
+    )
+    print(singlemodel.model)

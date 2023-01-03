@@ -1,10 +1,10 @@
-from collections import namedtuple
 from dataclasses import dataclass
 import yaml
 
 
 @dataclass
 class ConfigStruct:
+    # TODO: improve this so it doesn't break if args are out of order
     arch: str  # resnet18 or resnet50, backbone model architecture
     name: str  # run name
     dataset: str  # cifar, dataset

@@ -2,6 +2,7 @@
 replacement for ResNet class, with built-in trainers and testers
 """
 from typing import Tuple, OrderedDict
+import re
 
 import torch
 from torch import nn, Tensor
@@ -39,10 +40,21 @@ class Trainer:
         return self
 
     def get_ckpt(self) -> OrderedDict:
-        return self.model.state_dict()
+        if self.mode == "standard":
+            return self.model.state_dict()
+        else:  # self.mode == "ddp"
+            return self.model.module.state_dict()
 
     def load_ckpt(self, model_state_dict) -> None:
-        self.model.load_state_dict(model_state_dict)
+        # TODO: what if we load a non-ddp model?
+        model_dict = OrderedDict()
+        pattern = re.compile("module.")
+        for k, v in model_state_dict.items():
+            if re.search("module", k):
+                model_dict[re.sub(pattern, "", k)] = v
+            else:
+                model_dict = model_state_dict
+        self.model.load_state_dict(model_dict)
 
     def set_up_optimizers(self) -> None:
         self.optimizer = torch.optim.Adam(
