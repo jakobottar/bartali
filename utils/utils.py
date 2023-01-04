@@ -4,21 +4,22 @@ import yaml
 
 @dataclass
 class ConfigStruct:
-    # TODO: improve this so it doesn't break if args are out of order
-    arch: str  # resnet18 or resnet50, backbone model architecture
-    name: str  # run name
-    dataset: str  # cifar, dataset
-    dataset_location: str  # dataset filepath
-    batch_size: int  # int, batch size
-    workers: int  # int, dataloader worker threads
-    lr_schedule: float  # cosine-anneal or exponential, learning rate schedule
-    epochs: int  # int, num training epochs
-    lr: float  # float, learning rate
-    weight_decay: float  # float, optimizer weight decay
-    seed: int  # random seed, -1 for random
-    gpus: list  # int or list, gpu(s) to use
+    arch: str = "resnet18"  # resnet18 or resnet50, backbone model architecture
+    name: str = "random"  # run name
+    dataset: str = "cifar"  # cifar, dataset
+    dataset_location: str = "./data/"  # dataset filepath
+    batch_size: int = 8  # int, batch size
+    workers: int = 0  # int, dataloader worker threads
+    lr_schedule: str = "cosine-anneal"  # learning rate schedule
+    epochs: int = 2  # int, num training epochs
+    lr: float = 1.0  # float, learning rate
+    tau: float = 1.0  # float, NTXent parameter
+    multiplier: int = 2  # int, NTXent parameter
+    weight_decay: float = 1e-9  # float, optimizer weight decay
+    seed: int = -1  # random seed, -1 for random
+    gpus: tuple = (0,)  # tuple, gpu(s) to use
 
-    dict = asdict
+    as_dict = asdict
 
 
 def parse_config_file(filename: str):
@@ -26,7 +27,11 @@ def parse_config_file(filename: str):
     with open(filename, "r", encoding="utf-8") as file:
         config_dict = yaml.safe_load(file)
 
-    return ConfigStruct(*config_dict.values())
+    configs = ConfigStruct()
+    for key, val in config_dict.items():
+        setattr(configs, key, val)
+
+    return configs
 
 
 # TODO: cleaner way of doing this?

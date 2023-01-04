@@ -101,7 +101,7 @@ def main(rank, world_size, configs):
         mlflow.set_tracking_uri("http://tularosa.sci.utah.edu:5000")
         mlflow.set_experiment("bartali")
         mlflow.start_run(run_name=configs.name)
-        mlflow.log_params(configs.dict())
+        mlflow.log_params(configs.as_dict())
 
     # make structures for all_gather
     data = {
