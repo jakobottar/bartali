@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 import yaml
 
 
@@ -18,6 +18,8 @@ class ConfigStruct:
     seed: int  # random seed, -1 for random
     gpus: list  # int or list, gpu(s) to use
 
+    dict = asdict
+
 
 def parse_config_file(filename: str):
     # load yaml config file
@@ -25,3 +27,21 @@ def parse_config_file(filename: str):
         config_dict = yaml.safe_load(file)
 
     return ConfigStruct(*config_dict.values())
+
+
+# TODO: cleaner way of doing this?
+def roll_objects(objects: list, method="mean"):
+    rolled = dict()
+
+    for dev in objects:
+        for stats in dev.values():
+            for key, val in stats.items():
+                if key not in rolled.keys():
+                    rolled[key] = 0
+                rolled[key] += val
+
+    if method == "mean":
+        for key in rolled.keys():
+            rolled[key] /= len(objects)
+
+    return rolled

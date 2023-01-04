@@ -34,7 +34,7 @@ def prepare_dataloaders(rank: int, world_size: int, dataset: str, batch_size: in
         case "cifar":
             transform = transforms.Compose(
                 [
-                    transforms.AutoAugment(policy=transforms.AutoAugmentPolicy.CIFAR10),
+                    # transforms.AutoAugment(policy=transforms.AutoAugmentPolicy.CIFAR10),
                     transforms.ToTensor(),
                 ]
             )
@@ -82,7 +82,10 @@ def main(rank, world_size, configs):
     print(f"model launched on gpu {configs.gpus[rank]}")
     # setup the process groups
     setup(rank, world_size)
-    head = rank == 0
+    # set device (for all_gather)
+    torch.cuda.set_device(configs.gpus[rank])
+    # is head proc?
+    is_head = rank == 0
 
     # prepare the dataloader
     train_dataloader, test_dataloader = prepare_dataloaders(
@@ -94,32 +97,38 @@ def main(rank, world_size, configs):
     resnet.set_up_optimizers()
     resnet.set_up_loss()
 
-    # TODO: set up head to gather/log metrics
-    mlflow.set_tracking_uri("http://tularosa.sci.utah.edu:5000")
-    mlflow.set_experiment("bartali")
-    with mlflow.start_run(run_name=configs.name):
+    if is_head:
+        mlflow.set_tracking_uri("http://tularosa.sci.utah.edu:5000")
+        mlflow.set_experiment("bartali")
+        mlflow.start_run(run_name=configs.name)
+        mlflow.log_params(configs.dict())
 
-        for epoch in range(1, configs.epochs + 1):
-            if head:
-                print(f"epoch {epoch} of {configs.epochs}")
+    # make structures for all_gather
+    data = {
+        "train_stats": None,
+        "test_stats": None,
+    }
+    outputs = [None for _ in range(world_size)]
 
-            train_stats = resnet.train_epoch(train_dataloader, verbose=False)
-            mlflow.log_metrics(train_stats, step=epoch)
-            test_stats = resnet.test_epoch(test_dataloader, verbose=False)
-            mlflow.log_metrics(test_stats, step=epoch)
+    for epoch in range(1, configs.epochs + 1):
+        if is_head:
+            print(f"epoch {epoch} of {configs.epochs}")
 
+        data["train_stats"] = resnet.train_epoch(train_dataloader, verbose=False)
+        data["test_stats"] = resnet.test_epoch(test_dataloader, verbose=False)
+
+        dist.all_gather_object(outputs, data)
+
+        if is_head:
+            mlflow.log_metrics(utils.roll_objects(outputs), step=epoch)
             mlflow.log_metric(
                 "learning_rate", resnet.scheduler.get_last_lr()[0], step=epoch
             )
+            # resnet.scheduler.step()
+            torch.save(resnet.get_ckpt(), f"runs/{configs.name}/checkpoint-{epoch}.pth")
 
-            if head:
-                resnet.scheduler.step()
-                torch.save(
-                    resnet.get_ckpt(), f"runs/{configs.name}/checkpoint-{epoch}.pth"
-                )
-
-        if head:
-            torch.save(resnet.get_ckpt(), f"runs/{configs.name}/model.pth")
+    if is_head:
+        torch.save(resnet.get_ckpt(), f"runs/{configs.name}/model.pth")
 
     print("done!")
     cleanup()
@@ -148,11 +157,4 @@ if __name__ == "__main__":
 
     world_size = len(configs.gpus)
 
-    # TODO: something is sitting on gpu0 for all procs, what is up with that?
     mp.spawn(main, args=(world_size, configs), nprocs=world_size, join=True)
-
-    singlemodel = models.ResNet(configs)
-    singlemodel.load_ckpt(
-        torch.load(f"runs/{configs.name}/model.pth", map_location="cpu")
-    )
-    print(singlemodel.model)

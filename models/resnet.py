@@ -3,6 +3,7 @@ import shutil
 
 import torch
 from torch import nn
+import torch.nn.functional as F
 from torchvision import models
 
 from .trainernet import Trainer
@@ -30,16 +31,24 @@ class ResNet(Trainer):
         if verbose:
             loader = tqdm(loader, ncols=shutil.get_terminal_size().columns)
 
-        train_loss = 0
+        train_loss, correct = 0.0, 0.0
         for _, (value, target) in enumerate(loader):
             value, target = value.to(self.device), target.to(self.device)
-            _, loss = self.train_step(value, target)
-
+            # do training step
+            pred, loss = self.train_step(value, target)
+            # get loss
             train_loss += loss.item()
+            # get accuracy
+            pred = torch.argmax(F.softmax(pred, dim=1), dim=1)
+            correct += pred.eq(target.view_as(pred)).sum().item()
+
             if verbose:
                 loader.set_description(f"train loss: {loss.item():.4f}")
 
-        return {"train_loss": train_loss / len(dataloader)}
+        return {
+            "train_loss": train_loss / len(dataloader),
+            "train_acc": correct / (len(dataloader.dataset) / len(self.configs.gpus)),
+        }
 
     def test_epoch(self, dataloader, verbose=True) -> list:
         self.eval()
@@ -48,14 +57,22 @@ class ResNet(Trainer):
         if verbose:
             loader = tqdm(loader, ncols=shutil.get_terminal_size().columns)
 
-        test_loss = 0
+        test_loss, correct = 0.0, 0.0
         with torch.no_grad():
             for _, (value, target) in enumerate(loader):
                 value, target = value.to(self.device), target.to(self.device)
-                _, loss = self.test_step(value, target)
-
+                # do testing step
+                pred, loss = self.test_step(value, target)
+                # get loss
                 test_loss += loss.item()
+                # get accuracy
+                pred = torch.argmax(F.softmax(pred, dim=1), dim=1)
+                correct += pred.eq(target.view_as(pred)).sum().item()
+
                 if verbose:
                     loader.set_description(f"test loss: {loss.item():.4f}")
 
-        return {"test_loss": test_loss / len(dataloader)}
+        return {
+            "test_loss": test_loss / len(dataloader),
+            "test_acc": correct / (len(dataloader.dataset) / len(self.configs.gpus)),
+        }
