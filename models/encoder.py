@@ -31,8 +31,6 @@ class ResNetEncoder(models.resnet.ResNet):
             self.bn1 = self._norm_layer(64)
             self.relu = nn.ReLU(inplace=True)
 
-        print("** Using avgpool **")
-
     def forward(self, x):
         x = self.conv1(x)
         x = self.bn1(x)
@@ -80,14 +78,6 @@ class EncodeProject(nn.Module):
                 self.encoder_dim = 2048
             case _:
                 raise NotImplementedError(f"Cound not load model {backbone}.")
-
-        num_params = sum(
-            p.numel() for p in self.convnet.parameters() if p.requires_grad
-        )
-
-        print(
-            f"======> Encoder: output dim {self.encoder_dim} | {num_params/1e6:.3f}M parameters"
-        )
 
         self.proj_dim = 128
         projection_layers = [
