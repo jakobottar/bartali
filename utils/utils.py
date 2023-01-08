@@ -8,6 +8,7 @@ class ConfigStruct:
     name: str = "random"  # run name
     dataset: str = "cifar"  # cifar, dataset
     dataset_location: str = "./data/"  # dataset filepath
+    optimizer: str = "adam"  # optimizer
     batch_size: int = 8  # int, batch size
     workers: int = 0  # int, dataloader worker threads
     lr_schedule: str = "cosine-anneal"  # learning rate schedule
@@ -16,8 +17,10 @@ class ConfigStruct:
     tau: float = 1.0  # float, NTXent parameter
     multiplier: int = 2  # int, NTXent parameter
     weight_decay: float = 1e-9  # float, optimizer weight decay
+    find_unused_parameters: bool = False  # should DDP find unused parameters
     seed: int = -1  # random seed, -1 for random
     gpus: tuple = (0,)  # tuple, gpu(s) to use
+    port: str = "29500"  # DDP port
 
     as_dict = asdict
 

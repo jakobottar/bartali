@@ -1,4 +1,4 @@
-arch: resnet50
+arch: resnet18
 name: random
 dataset: cifar
 dataset_location: /scratch/jakobj/cifar
@@ -9,4 +9,5 @@ epochs: 150
 lr: 0.01
 weight_decay: 1.0e-4
 seed: -1
-gpus: [0, 1]
+gpus: [2, 3]
+port: "29501"

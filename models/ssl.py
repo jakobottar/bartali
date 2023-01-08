@@ -2,7 +2,6 @@ from tqdm import tqdm
 import shutil
 
 import torch
-from torchvision import models
 
 from .trainernet import Trainer
 from .losses import NTXent
@@ -10,21 +9,15 @@ from .encoder import EncodeProject
 
 
 class SimCLR(Trainer):
-    def __init__(self, backbone="resnet18") -> None:
-        super().__init__()
+    def __init__(self, configs) -> None:
+        super().__init__(configs)
 
-        self.model = EncodeProject(backbone=backbone, cifar_head=True)
+        self.model = EncodeProject(backbone=configs.arch, cifar_head=(configs.dataset == "cifar"))
 
-        match backbone:
-            case "resnet18" | "18":
-                self.model = models.resnet18(weights="DEFAULT")
-            case "resnet50" | "50":
-                self.model = models.resnet50(weights="DEFAULT")
-            case _:
-                raise NotImplementedError(f"Cound not load model {backbone}.")
-
-    def set_up_loss(self, configs):
-        self.loss = NTXent(tau=configs.tau, multiplier=int(configs.multiplier))
+    def set_up_loss(self):
+        self.loss = NTXent(
+            tau=self.configs.tau, multiplier=int(self.configs.multiplier)
+        )
 
     def step(self, value, target):
 

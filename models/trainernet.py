@@ -36,7 +36,11 @@ class Trainer:
     def to_ddp(self, rank):
         self.mode = "ddp"
         self.device = self.configs.gpus[rank]
-        self.model = DDP(self.model.to(self.device), device_ids=[self.device])
+        self.model = DDP(
+            self.model.to(self.device),
+            device_ids=[self.device],
+            find_unused_parameters=self.configs.find_unused_parameters,
+        )
         return self
 
     def get_ckpt(self) -> OrderedDict:
@@ -57,11 +61,21 @@ class Trainer:
         self.model.load_state_dict(model_dict)
 
     def set_up_optimizers(self) -> None:
-        self.optimizer = torch.optim.Adam(
-            self.model.parameters(),
-            lr=self.configs.lr,
-            weight_decay=self.configs.weight_decay,
-        )
+        match self.configs.optimizer:
+            case "adam":
+                self.optimizer = torch.optim.Adam(
+                    self.model.parameters(),
+                    lr=self.configs.lr,
+                    weight_decay=self.configs.weight_decay,
+                )
+            case "lars":
+                # TODO: implement LARS optimizer
+                raise NotImplementedError()
+            case _:
+                raise NotImplementedError(
+                    f"Could not find scheduler {self.configs.lr_schedule}."
+                )
+
         match self.configs.lr_schedule:
             case "exponential":
                 self.scheduler = torch.optim.lr_scheduler.ExponentialLR(
