@@ -6,8 +6,9 @@ import torch
 import numpy as np
 import scipy
 
+import utils
+
 from .trainernet import Trainer
-from .losses import NTXent
 from .encoder import EncodeProject
 
 
@@ -42,7 +43,7 @@ class SimCLR(Trainer):
                 linear_normal_init(m.weight)
 
     def set_up_loss(self):
-        self.loss = NTXent(
+        self.loss = utils.NTXent(
             tau=self.configs.tau,
             multiplier=int(self.configs.multiplier),
             distributed=(self.mode == "ddp"),
