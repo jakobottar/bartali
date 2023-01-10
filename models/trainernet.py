@@ -8,6 +8,8 @@ import torch
 from torch import nn, Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
 
+from utils import LARS
+
 
 class Trainer:
     def __init__(self, configs) -> None:
@@ -41,6 +43,7 @@ class Trainer:
             device_ids=[self.device],
             find_unused_parameters=self.configs.find_unused_parameters,
         )
+        self.set_up_loss()  # re-set up loss, in case of ddp dependencies
         return self
 
     def get_ckpt(self) -> OrderedDict:
@@ -61,16 +64,47 @@ class Trainer:
         self.model.load_state_dict(model_dict)
 
     def set_up_optimizers(self) -> None:
+        def exclude_from_wd_and_adaptation(name):
+            if "bn" in name:
+                return True
+            if self.configs.optimizer == "lars" and "bias" in name:
+                return True
+
+        parameters = [
+            {
+                "params": [
+                    p
+                    for name, p in self.model.named_parameters()
+                    if not exclude_from_wd_and_adaptation(name)
+                ],
+                "weight_decay": self.configs.weight_decay,
+                "layer_adaptation": True,
+            },
+            {
+                "params": [
+                    p
+                    for name, p in self.model.named_parameters()
+                    if exclude_from_wd_and_adaptation(name)
+                ],
+                "weight_decay": 0.0,
+                "layer_adaptation": False,
+            },
+        ]
+
         match self.configs.optimizer:
             case "adam":
                 self.optimizer = torch.optim.Adam(
-                    self.model.parameters(),
+                    parameters,
                     lr=self.configs.lr,
                     weight_decay=self.configs.weight_decay,
                 )
             case "lars":
-                # TODO: implement LARS optimizer
-                raise NotImplementedError()
+                self.optimizer = torch.optim.SGD(
+                    parameters,
+                    lr=self.configs.lr,
+                    momentum=0.9,
+                )
+                lars_optimizer = LARS(self.optimizer)
             case _:
                 raise NotImplementedError(
                     f"Could not find scheduler {self.configs.lr_schedule}."
@@ -90,6 +124,9 @@ class Trainer:
                     f"Could not find scheduler {self.configs.lr_schedule}."
                 )
 
+        if self.configs.optimizer == "lars":
+            self.optimizer = lars_optimizer
+
     def set_up_loss(self) -> None:
         raise NotImplementedError("'set_up_loss' not reimplemented in child class.")
 
@@ -102,8 +139,9 @@ class Trainer:
 
     def train_step(self, value, target) -> Tuple[Tensor, Tensor]:
 
-        self.optimizer.zero_grad()
         pred, loss = self.step(value, target)
+
+        self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
 
@@ -112,8 +150,8 @@ class Trainer:
     def test_step(self, value, target) -> Tuple[Tensor, Tensor]:
         return self.step(value, target)
 
-    def train_epoch(self, dataloader) -> None:
+    def train_epoch(self) -> None:
         raise NotImplementedError("'train_epoch' not reimplemented in child class.")
 
-    def test_epoch(self, dataloader) -> None:
+    def test_epoch(self) -> None:
         raise NotImplementedError("'test_epoch' not reimplemented in child class.")

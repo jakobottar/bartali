@@ -1,13 +1,13 @@
-arch: resnet18
+arch: resnet50
 name: random
 dataset: cifar
 dataset_location: /scratch/jakobj/cifar
-batch_size: 1024
-workers: 4
+batch_size: 512
+workers: 2
 lr_schedule: cosine-anneal
 epochs: 150
 lr: 0.01
 weight_decay: 1.0e-4
 seed: -1
-gpus: [2, 3]
-port: "29501"
+gpus: [0, 1]
+port: "1234"

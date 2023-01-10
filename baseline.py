@@ -2,11 +2,15 @@
 baseline resnet model
 """
 import os
+import random
 import argparse
+import socket
+
 import namegenerator
 import mlflow
 
 import torch
+import torch.backends.cudnn as cudnn
 import torch.multiprocessing as mp
 import torch.distributed as dist
 
@@ -14,14 +18,18 @@ import models
 import utils
 
 
-def main(rank, world_size, configs):
-    print(f"model launched on gpu {configs.gpus[rank]}")
+def worker(rank, world_size, configs):
+    """
+    single worker function
+    """
+    print(
+        f"===> launched proc {rank}/{world_size}@{socket.gethostname()}",
+        flush=True,
+    )
     # setup the process groups
     utils.setup(rank, world_size, configs.port)
     # set device (for all_gather)
     torch.cuda.set_device(configs.gpus[rank])
-    # is head proc?
-    is_head = rank == 0
 
     # prepare the dataloader
     train_dataloader, test_dataloader = utils.prepare_dataloaders(
@@ -30,10 +38,10 @@ def main(rank, world_size, configs):
 
     # set up model
     resnet = models.ResNet(configs).to_ddp(rank)
-    resnet.set_up_optimizers()
-    resnet.set_up_loss()
 
-    if is_head:
+    cudnn.benchmark = True
+
+    if rank == 0:
         mlflow.set_tracking_uri("http://tularosa.sci.utah.edu:5000")
         mlflow.set_experiment("bartali")
         mlflow.start_run(run_name=configs.name)
@@ -47,7 +55,7 @@ def main(rank, world_size, configs):
     outputs = [None for _ in range(world_size)]
 
     for epoch in range(1, configs.epochs + 1):
-        if is_head:
+        if rank == 0:
             print(f"epoch {epoch} of {configs.epochs}")
 
         data["train_stats"] = resnet.train_epoch(train_dataloader, verbose=False)
@@ -55,17 +63,17 @@ def main(rank, world_size, configs):
 
         dist.all_gather_object(outputs, data)
 
-        if is_head:
+        if rank == 0:
             mlflow.log_metrics(utils.roll_objects(outputs), step=epoch)
             mlflow.log_metric(
                 "learning_rate", resnet.scheduler.get_last_lr()[0], step=epoch
             )
-            torch.save(resnet.get_ckpt(), f"runs/{configs.name}/checkpoint-{epoch}.pth")
+            torch.save(resnet.get_ckpt(), f"{configs.root}/checkpoint-{epoch}.pth")
 
-        # resnet.scheduler.step()
+        resnet.scheduler.step()
 
-    if is_head:
-        torch.save(resnet.get_ckpt(), f"runs/{configs.name}/model.pth")
+    if rank == 0:
+        torch.save(resnet.get_ckpt(), f"{configs.root}/model.pth")
 
     print("done!")
     utils.cleanup()
@@ -81,6 +89,11 @@ if __name__ == "__main__":
 
     configs = utils.parse_config_file(args.config)
 
+    if configs.seed != -1:
+        random.seed(configs.seed)
+        torch.manual_seed(configs.seed)
+        cudnn.deterministic = True
+
     if configs.name == "random":
         configs.name = "baseline-" + namegenerator.gen()
     else:
@@ -91,7 +104,8 @@ if __name__ == "__main__":
         os.mkdir(f"runs/{configs.name}")
     except FileExistsError as error:
         pass
+    configs.root = f"{configs.root}/{configs.name}"
 
     world_size = len(configs.gpus)
 
-    mp.spawn(main, args=(world_size, configs), nprocs=world_size, join=True)
+    mp.spawn(worker, args=(world_size, configs), nprocs=world_size, join=True)

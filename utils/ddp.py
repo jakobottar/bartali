@@ -1,28 +1,51 @@
-import os
+"""
+ddp utils
+"""
+import torch
 import torch.distributed as dist
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 from torchvision import datasets, transforms
 
+from .data import MultiplyBatchSampler
 
-def setup(rank, world_size, port="29500"):
-    os.environ["MASTER_ADDR"] = "127.0.0.1"
-    os.environ["MASTER_PORT"] = port
-    dist.init_process_group("nccl", rank=rank, world_size=world_size)
+
+def setup(rank, world_size, port="1234"):
+    dist.init_process_group(
+        "nccl", rank=rank, world_size=world_size, init_method=f"tcp://127.0.0.1:{port}"
+    )
 
 
 def cleanup():
     dist.destroy_process_group()
 
 
+def get_color_distortion(s=0.5):
+    # s is the strength of color distortion.
+    # given from https://arxiv.org/pdf/2002.05709.pdf
+    color_jitter = transforms.ColorJitter(0.8 * s, 0.8 * s, 0.8 * s, 0.2 * s)
+    rnd_color_jitter = transforms.RandomApply([color_jitter], p=0.8)
+    rnd_gray = transforms.RandomGrayscale(p=0.2)
+    color_distort = transforms.Compose([rnd_color_jitter, rnd_gray])
+    return color_distort
+
+
+# TODO: this is causing a bottleneck, specifically using only one thread to process transforms. How can we remedy this?
 def prepare_dataloaders(rank: int, world_size: int, configs):
 
     match configs.dataset:
         case "cifar":
             transform = transforms.Compose(
                 [
-                    # transforms.AutoAugment(policy=transforms.AutoAugmentPolicy.CIFAR10),
+                    transforms.RandomResizedCrop(
+                        32,
+                        scale=(0.08, 1.0),
+                        interpolation=transforms.InterpolationMode.BICUBIC,
+                    ),
+                    transforms.RandomHorizontalFlip(),
+                    get_color_distortion(),
                     transforms.ToTensor(),
+                    lambda x: torch.clamp(x, 0, 1),
                 ]
             )
             train_dataset = datasets.CIFAR10(
@@ -42,30 +65,31 @@ def prepare_dataloaders(rank: int, world_size: int, configs):
         case _:
             raise NotImplementedError(f"Cound not load dataset {configs.dataset}.")
 
-    train_sampler = DistributedSampler(
-        train_dataset, num_replicas=world_size, rank=rank, shuffle=True, drop_last=False
-    )
+    assert configs.batch_size % world_size == 0
+    configs.batch_size //= world_size
+
+    if rank == 0:
+        print(f"===> {world_size} gpus total; batch_size={configs.batch_size} per gpu")
+
+    batch_sampler = MultiplyBatchSampler
+    batch_sampler.multiplier = configs.multiplier
+
+    train_sampler = DistributedSampler(train_dataset)
 
     train_dataloader = DataLoader(
         train_dataset,
-        batch_size=configs.batch_size,
-        pin_memory=False,
-        drop_last=False,
+        pin_memory=True,
         num_workers=0,
-        sampler=train_sampler,
+        batch_sampler=batch_sampler(train_sampler, configs.batch_size, drop_last=True),
     )
 
-    test_sampler = DistributedSampler(
-        test_dataset, num_replicas=world_size, rank=rank, shuffle=False, drop_last=False
-    )
+    test_sampler = DistributedSampler(test_dataset)
 
     test_dataloader = DataLoader(
         test_dataset,
-        batch_size=configs.batch_size,
-        pin_memory=False,
-        drop_last=False,
+        pin_memory=True,
         num_workers=0,
-        sampler=test_sampler,
+        batch_sampler=batch_sampler(test_sampler, configs.batch_size, drop_last=True),
     )
 
     return train_dataloader, test_dataloader

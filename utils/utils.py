@@ -21,6 +21,7 @@ class ConfigStruct:
     seed: int = -1  # random seed, -1 for random
     gpus: tuple = (0,)  # tuple, gpu(s) to use
     port: str = "29500"  # DDP port
+    root: str = "runs"  # root of folder to save runs in
 
     as_dict = asdict
 
