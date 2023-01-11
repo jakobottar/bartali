@@ -8,6 +8,7 @@ from torch.utils.data.distributed import DistributedSampler
 from torchvision import datasets, transforms
 
 from .data import MultiplyBatchSampler
+from .data import MagImageDataset
 
 
 def setup(rank, world_size, port="1234"):
@@ -62,6 +63,32 @@ def prepare_dataloaders(rank: int, world_size: int, configs):
                 transform=transform,
             )
 
+        case "nfs":
+            transform = transform = transforms.Compose(
+                [
+                    transforms.RandomResizedCrop(
+                        128,
+                        scale=(0.08, 1.0),
+                        # interpolation=transforms.InterpolationMode.BICUBIC,
+                    ),
+                    # transforms.RandomHorizontalFlip(),
+                    # get_color_distortion(),
+                    transforms.ToTensor(),
+                    # lambda x: torch.clamp(x, 0, 1),
+                ]
+            )
+            train_dataset = MagImageDataset(
+                configs.dataset_location,
+                train=True,
+                transform=transform,
+            )
+
+            test_dataset = MagImageDataset(
+                configs.dataset_location,
+                train=False,
+                transform=transform,
+            )
+
         case _:
             raise NotImplementedError(f"Cound not load dataset {configs.dataset}.")
 
@@ -79,7 +106,7 @@ def prepare_dataloaders(rank: int, world_size: int, configs):
     train_dataloader = DataLoader(
         train_dataset,
         pin_memory=True,
-        num_workers=0,
+        num_workers=configs.workers,
         batch_sampler=batch_sampler(train_sampler, configs.batch_size, drop_last=True),
     )
 
@@ -88,7 +115,7 @@ def prepare_dataloaders(rank: int, world_size: int, configs):
     test_dataloader = DataLoader(
         test_dataset,
         pin_memory=True,
-        num_workers=0,
+        num_workers=configs.workers,
         batch_sampler=batch_sampler(test_sampler, configs.batch_size, drop_last=True),
     )
 
