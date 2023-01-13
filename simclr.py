@@ -2,6 +2,7 @@
 simclr model
 """
 import os
+import time
 import random
 import argparse
 import socket
@@ -56,7 +57,8 @@ def worker(rank, world_size, configs):
 
     for epoch in range(1, configs.epochs + 1):
         if rank == 0:
-            print(f"epoch {epoch} of {configs.epochs}")
+            print(f"epoch {epoch} of {configs.epochs} ", end="")
+            start_time = time.time()
 
         data["train_stats"] = simclr.train_epoch(train_dataloader, verbose=False)
         data["test_stats"] = simclr.test_epoch(test_dataloader, verbose=False)
@@ -69,10 +71,12 @@ def worker(rank, world_size, configs):
                 "learning_rate", simclr.scheduler.get_last_lr()[0], step=epoch
             )
             torch.save(simclr.get_ckpt(), f"{configs.root}/checkpoint-{epoch}.pth")
+            print(f"{time.time() - start_time:.2f} sec")
 
     if rank == 0:
         torch.save(simclr.get_ckpt(), f"{configs.root}/model.pth")
 
+    dist.barrier()
     print("done!")
     utils.cleanup()
 

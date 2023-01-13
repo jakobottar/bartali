@@ -31,7 +31,12 @@ def get_color_distortion(s=0.5):
     return color_distort
 
 
-# TODO: this is causing a bottleneck, specifically using only one thread to process transforms. How can we remedy this?
+# lambdas cannot be pickled, so we have to define a function
+class Clamp(object):
+    def __call__(self, x):
+        return torch.clamp(x, 0, 1)
+
+
 def prepare_dataloaders(rank: int, world_size: int, configs):
 
     match configs.dataset:
@@ -46,7 +51,7 @@ def prepare_dataloaders(rank: int, world_size: int, configs):
                     transforms.RandomHorizontalFlip(),
                     get_color_distortion(),
                     transforms.ToTensor(),
-                    lambda x: torch.clamp(x, 0, 1),
+                    Clamp(),
                 ]
             )
             train_dataset = datasets.CIFAR10(
@@ -67,14 +72,14 @@ def prepare_dataloaders(rank: int, world_size: int, configs):
             transform = transform = transforms.Compose(
                 [
                     transforms.RandomResizedCrop(
-                        128,
+                        256,
                         scale=(0.08, 1.0),
-                        # interpolation=transforms.InterpolationMode.BICUBIC,
+                        interpolation=transforms.InterpolationMode.BICUBIC,
                     ),
-                    # transforms.RandomHorizontalFlip(),
+                    transforms.RandomHorizontalFlip(),
                     # get_color_distortion(),
                     transforms.ToTensor(),
-                    # lambda x: torch.clamp(x, 0, 1),
+                    Clamp(),
                 ]
             )
             train_dataset = MagImageDataset(

@@ -68,14 +68,14 @@ class SimCLR(Trainer):
 
         train_loss = 0
         data_time, iter_time = 0.0, 0.0
-        start_time = time.time()
+        start_time = time.perf_counter()
         for _, (value, target) in enumerate(loader):
             value, target = value.to(self.device), target.to(self.device)
-            data_time += time.time() - start_time
+            data_time += time.perf_counter() - start_time
 
             # do training step
             _, loss = self.train_step(value, target)
-            iter_time += time.time() - start_time
+            iter_time += time.perf_counter() - start_time
 
             # get loss
             train_loss += loss.item()
