@@ -15,7 +15,6 @@ from .encoder import EncodeProject
 class SimCLR(Trainer):
     def __init__(self, configs) -> None:
         super().__init__(configs)
-        self.epoch = 0
         self.model = EncodeProject(
             backbone=configs.arch, cifar_head=(configs.dataset == "cifar")
         )
@@ -61,7 +60,7 @@ class SimCLR(Trainer):
     def train_epoch(self, dataloader, verbose=True) -> dict:
         self.train()
 
-        # dataloader.sampler.set_epoch(self.epoch)
+        dataloader.sampler.set_epoch(self.epoch)
         loader = iter(dataloader)
         if verbose:
             loader = tqdm(loader, ncols=shutil.get_terminal_size().columns)
@@ -83,7 +82,8 @@ class SimCLR(Trainer):
                 loader.set_description(f"train loss: {loss.item():.4f}")
 
         self.epoch += 1
-        self.scheduler.step()
+        if self.scheduler:
+            self.scheduler.step()
         return {
             "train_loss": train_loss / len(dataloader),
             "data_time": data_time / len(dataloader),

@@ -55,6 +55,9 @@ class ResNet(Trainer):
             if verbose:
                 loader.set_description(f"train loss: {loss.item():.4f}")
 
+        self.epoch += 1
+        if self.scheduler:
+            self.scheduler.step()
         return {
             "train_loss": train_loss / len(dataloader),
             "train_acc": correct / (len(dataloader.dataset) / len(self.configs.gpus)),

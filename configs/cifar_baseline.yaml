@@ -4,9 +4,10 @@ dataset: cifar
 dataset_location: /scratch/jakobj/cifar
 batch_size: 1024
 workers: 2
-lr_schedule: cosine-anneal
+lr: 0.001
+lr_schedule: "exponential"
+lr_gamma: 0.97
 epochs: 200
-lr: 0.01
 weight_decay: 1.0e-4
 seed: -1
 gpus: [0, 1, 2, 3]

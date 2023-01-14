@@ -4,9 +4,10 @@ dataset: nfs
 dataset_location: /scratch/jakobj/multimag
 batch_size: 64
 workers: 2
-lr_schedule: cosine-anneal
+lr: 0.001
+lr_schedule: "exponential"
+lr_gamma: 0.97
 epochs: 200
-lr: 1
 weight_decay: 1.0e-4
 seed: -1
 gpus: [0, 1, 2, 3]

@@ -11,9 +11,10 @@ class ConfigStruct:
     optimizer: str = "adam"  # optimizer
     batch_size: int = 8  # int, batch size
     workers: int = 0  # int, dataloader worker threads
-    lr_schedule: str = "cosine-anneal"  # learning rate schedule
-    epochs: int = 2  # int, num training epochs
     lr: float = 1.0  # float, learning rate
+    lr_schedule: str = "cosine-anneal"  # learning rate schedule
+    lr_gamma: float = 0.99  # learning rate scheduler parameter
+    epochs: int = 2  # int, num training epochs
     tau: float = 1.0  # float, NTXent parameter
     multiplier: int = 2  # int, NTXent parameter
     weight_decay: float = 1e-9  # float, optimizer weight decay

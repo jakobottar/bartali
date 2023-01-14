@@ -20,6 +20,7 @@ class Trainer:
         self.configs = configs
         self.device = "cpu"
         self.mode = "standard"
+        self.epoch = 0
 
     def eval(self) -> None:
         self.model.eval()
@@ -119,6 +120,8 @@ class Trainer:
                 self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
                     self.optimizer, self.configs.epochs
                 )
+            case "constant":
+                self.scheduler = None
             case _:
                 raise NotImplementedError(
                     f"Could not find scheduler {self.configs.lr_schedule}."
