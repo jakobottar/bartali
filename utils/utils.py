@@ -16,7 +16,7 @@ class ConfigStruct:
     lr_gamma: float = 0.99  # learning rate scheduler parameter
     epochs: int = 2  # int, num training epochs
     tau: float = 1.0  # float, NTXent parameter
-    multiplier: int = 2  # int, NTXent parameter
+    multiplier: int = 1  # int, NTXent parameter, set to 1 when not using simclr
     weight_decay: float = 1e-9  # float, optimizer weight decay
     find_unused_parameters: bool = False  # should DDP find unused parameters
     seed: int = -1  # random seed, -1 for random
