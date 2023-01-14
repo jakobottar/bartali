@@ -1,8 +1,10 @@
 import shutil
+from typing import Tuple
 import time
 from tqdm import tqdm
 
 import torch
+from torch import nn, Tensor
 import numpy as np
 import scipy
 
@@ -55,8 +57,6 @@ class SimCLR(Trainer):
 
         return (pred, loss)
 
-    # TODO: implement encode step
-
     def train_epoch(self, dataloader, verbose=True) -> dict:
         self.train()
 
@@ -108,3 +108,40 @@ class SimCLR(Trainer):
                     loader.set_description(f"test loss: {loss.item():.4f}")
 
         return {"test_loss": test_loss / len(dataloader)}
+
+
+# TODO: implement eval model
+class EvalSimCLR(Trainer):
+    def __init__(self, configs) -> None:
+        super().__init__(configs)
+
+        # Load a trained SIMCLR model
+        self.simclr = None
+
+        # build a linear layer to choose classes
+        # push torch.ones through the model to get input size
+        self.model = None
+
+        self.set_up_optimizers()
+        self.set_up_loss()
+
+    def set_up_loss(self) -> None:
+        self.loss = nn.CrossEntropyLoss()
+
+    def step(self, value, target) -> Tuple[Tensor, Tensor]:
+        # pass through frozen simclr model, without projection head
+        value = self.simclr(value, out="h")
+        # pass through last linear layer
+        pred = self.model(value)
+        # compute loss
+        loss = self.loss(pred, target)
+
+        return (pred, loss)
+
+    def train_epoch(self) -> dict:
+        # basically the same as SimCLR arch
+        pass
+
+    def test_epoch(self) -> None:
+        # basically the same as SimCLR arch, but with proper accuracy now
+        pass
