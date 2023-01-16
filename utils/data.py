@@ -94,8 +94,3 @@ class MagImageDataset(Dataset):
             image = self.transform(image)
 
         return image, label
-
-
-if __name__ == "__main__":
-    dataset = RouteImageDataset("/scratch/jakobj/multimag/")
-    print(next(iter(dataset)))

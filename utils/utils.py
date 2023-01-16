@@ -6,11 +6,14 @@ import yaml
 class ConfigStruct:
     arch: str = "resnet18"  # resnet18 or resnet50, backbone model architecture
     name: str = "random"  # run name
+    chkpt_file: str = "./model.pth"  # checkpoint to resume from
     dataset: str = "cifar"  # cifar, dataset
     dataset_location: str = "./data/"  # dataset filepath
+
     optimizer: str = "adam"  # optimizer
     batch_size: int = 8  # int, batch size
     workers: int = 0  # int, dataloader worker threads
+
     lr: float = 1.0  # float, learning rate
     lr_schedule: str = "cosine-anneal"  # learning rate schedule
     lr_gamma: float = 0.99  # learning rate scheduler parameter
@@ -18,9 +21,11 @@ class ConfigStruct:
     tau: float = 1.0  # float, NTXent parameter
     multiplier: int = 1  # int, NTXent parameter, set to 1 when not using simclr
     weight_decay: float = 1e-9  # float, optimizer weight decay
+
     find_unused_parameters: bool = False  # should DDP find unused parameters
+
     seed: int = -1  # random seed, -1 for random
-    gpus: tuple = (0,)  # tuple, gpu(s) to use
+    gpus: str | tuple = (0,)  # str or tuple, gpu(s) to use
     port: str = "29500"  # DDP port
     root: str = "runs"  # root of folder to save runs in
 

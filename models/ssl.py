@@ -1,10 +1,13 @@
 import shutil
-from typing import Tuple
+from typing import OrderedDict
 import time
+import re
 from tqdm import tqdm
 
 import torch
-from torch import nn, Tensor
+from torch import nn
+from torch.utils.data import DataLoader
+from torch.utils.data.distributed import DistributedSampler
 import numpy as np
 import scipy
 
@@ -110,38 +113,144 @@ class SimCLR(Trainer):
         return {"test_loss": test_loss / len(dataloader)}
 
 
-# TODO: implement eval model
 class EvalSimCLR(Trainer):
     def __init__(self, configs) -> None:
         super().__init__(configs)
 
         # Load a trained SIMCLR model
-        self.simclr = None
+        self.encoder = EncodeProject(
+            backbone=self.configs.arch, cifar_head=(self.configs.dataset == "cifar")
+        )
+        self.load_encoder_ckpt(torch.load(self.configs.chkpt_file))
+        self.encoder.to(self.device)
+        self.encoder.eval()
+
+        # push torch.ones through the model to get input size
+        match self.configs.dataset:
+            case "cifar":
+                hdim = self.encoder(
+                    torch.ones(10, 3, 32, 32).to(self.device), out="h"
+                ).shape[1]
+                n_classes = 10
+            case "nfs":
+                hdim = self.encoder(
+                    torch.ones(10, 3, 256, 256).to(self.device), out="h"
+                ).shape[1]
+                n_classes = 16
+            case _:
+                raise NotImplementedError(
+                    f"Cound not load dataset {self.configs.dataset}."
+                )
 
         # build a linear layer to choose classes
-        # push torch.ones through the model to get input size
-        self.model = None
+        model = nn.Linear(hdim, n_classes).to(self.device)
+        model.weight.data.zero_()
+        model.bias.data.zero_()
+        self.model = model
 
         self.set_up_optimizers()
         self.set_up_loss()
 
+    def to(self, device):
+        super().to(device)
+        self.encoder.to(device)
+        return self
+
+    def to_ddp(self, rank):
+        super().to_ddp(rank)
+        self.encoder.to(self.device)
+        return self
+
+    def precompute_encodings(self, dataloader: DataLoader, shuffle: bool = True):
+        print("===> preprocessing encodings...")
+        encodings, labels = [], []
+
+        with torch.no_grad():
+            for _, (value, target) in enumerate(dataloader):
+                value = value.to(self.device)
+                enc = self.encoder(value, out="h")
+                encodings.append(enc.cpu())
+                labels.append(target)
+
+        dataset = torch.utils.data.TensorDataset(
+            torch.FloatTensor(torch.stack(encodings)),
+            torch.LongTensor(torch.stack(labels)),
+        )
+
+        sampler = DistributedSampler(dataset, shuffle=shuffle)
+
+        dataloader = DataLoader(
+            dataset,
+            num_workers=self.configs.workers,
+            pin_memory=True,
+            sampler=sampler,
+            batch_size=self.configs.batch_size,
+        )
+
+        return dataloader
+
     def set_up_loss(self) -> None:
         self.loss = nn.CrossEntropyLoss()
 
-    def step(self, value, target) -> Tuple[Tensor, Tensor]:
-        # pass through frozen simclr model, without projection head
-        value = self.simclr(value, out="h")
-        # pass through last linear layer
-        pred = self.model(value)
-        # compute loss
-        loss = self.loss(pred, target)
+    def load_encoder_ckpt(self, model_state_dict) -> None:
+        # TODO: what if we load a non-ddp model?
+        model_dict = OrderedDict()
+        pattern = re.compile("module.")
+        for k, v in model_state_dict.items():
+            if re.search("module", k):
+                model_dict[re.sub(pattern, "", k)] = v
+            else:
+                model_dict = model_state_dict
+        self.encoder.load_state_dict(model_dict)
 
-        return (pred, loss)
+    def train_epoch(self, dataloader, verbose=True) -> dict:
+        self.train()
 
-    def train_epoch(self) -> dict:
-        # basically the same as SimCLR arch
-        pass
+        dataloader.sampler.set_epoch(self.epoch)
+        loader = iter(dataloader)
+        if verbose:
+            loader = tqdm(loader, ncols=shutil.get_terminal_size().columns)
 
-    def test_epoch(self) -> None:
-        # basically the same as SimCLR arch, but with proper accuracy now
-        pass
+        train_loss = 0
+        data_time, iter_time = 0.0, 0.0
+        start_time = time.perf_counter()
+        for _, (value, target) in enumerate(loader):
+            value, target = value.to(self.device), target.to(self.device)
+            data_time += time.perf_counter() - start_time
+
+            # do training step
+            _, loss = self.train_step(value, target)
+            iter_time += time.perf_counter() - start_time
+
+            # get loss
+            train_loss += loss.item()
+            if verbose:
+                loader.set_description(f"train loss: {loss.item():.4f}")
+
+        self.epoch += 1
+        if self.scheduler:
+            self.scheduler.step()
+        return {
+            "train_loss": train_loss / len(dataloader),
+            "data_time": data_time / len(dataloader),
+            "iter_time": iter_time / len(dataloader),
+        }
+
+    def test_epoch(self, dataloader, verbose=True) -> list:
+        self.eval()
+
+        loader = iter(dataloader)
+        if verbose:
+            loader = tqdm(loader, ncols=shutil.get_terminal_size().columns)
+
+        test_loss = 0
+        with torch.no_grad():
+            for _, (value, target) in enumerate(loader):
+                value, target = value.to(self.device), target.to(self.device)
+                _, loss = self.test_step(value, target)
+
+                test_loss += loss.item()
+                if verbose:
+                    loader.set_description(f"test loss: {loss.item():.4f}")
+
+        return {"test_loss": test_loss / len(dataloader)}

@@ -1,2 +1,2 @@
 from .resnet import ResNet
-from .ssl import SimCLR
+from .ssl import SimCLR, EvalSimCLR
