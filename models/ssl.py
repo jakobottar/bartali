@@ -6,8 +6,10 @@ from tqdm import tqdm
 
 import torch
 from torch import nn
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
+import torch.distributed as dist
 import numpy as np
 import scipy
 
@@ -63,7 +65,9 @@ class SimCLR(Trainer):
     def train_epoch(self, dataloader, verbose=True) -> dict:
         self.train()
 
-        dataloader.sampler.set_epoch(self.epoch)
+        if isinstance(dataloader.sampler, DistributedSampler):
+            dataloader.sampler.set_epoch(self.epoch)
+
         loader = iter(dataloader)
         if verbose:
             loader = tqdm(loader, ncols=shutil.get_terminal_size().columns)
@@ -88,9 +92,9 @@ class SimCLR(Trainer):
         if self.scheduler:
             self.scheduler.step()
         return {
-            "train_loss": train_loss / len(dataloader),
-            "data_time": data_time / len(dataloader),
-            "iter_time": iter_time / len(dataloader),
+            "train_loss": train_loss / (len(dataloader) / len(self.configs.gpus)),
+            "data_time": data_time / (len(dataloader) / len(self.configs.gpus)),
+            "iter_time": iter_time / (len(dataloader) / len(self.configs.gpus)),
         }
 
     def test_epoch(self, dataloader, verbose=True) -> list:
@@ -110,7 +114,7 @@ class SimCLR(Trainer):
                 if verbose:
                     loader.set_description(f"test loss: {loss.item():.4f}")
 
-        return {"test_loss": test_loss / len(dataloader)}
+        return {"test_loss": test_loss / (len(dataloader) / len(self.configs.gpus))}
 
 
 class EvalSimCLR(Trainer):
@@ -169,12 +173,15 @@ class EvalSimCLR(Trainer):
             for _, (value, target) in enumerate(dataloader):
                 value = value.to(self.device)
                 enc = self.encoder(value, out="h")
-                encodings.append(enc.cpu())
-                labels.append(target)
+                encodings.extend(list(enc.cpu()))
+                labels.extend(list(target))
+
+        encodings = torch.stack(encodings)
+        labels = torch.stack(labels)
 
         dataset = torch.utils.data.TensorDataset(
-            torch.FloatTensor(torch.stack(encodings)),
-            torch.LongTensor(torch.stack(labels)),
+            torch.FloatTensor(encodings),
+            torch.LongTensor(labels),
         )
 
         sampler = DistributedSampler(dataset, shuffle=shuffle)
@@ -206,12 +213,14 @@ class EvalSimCLR(Trainer):
     def train_epoch(self, dataloader, verbose=True) -> dict:
         self.train()
 
-        dataloader.sampler.set_epoch(self.epoch)
+        if isinstance(dataloader.sampler, DistributedSampler):
+            dataloader.sampler.set_epoch(self.epoch)
+
         loader = iter(dataloader)
         if verbose:
             loader = tqdm(loader, ncols=shutil.get_terminal_size().columns)
 
-        train_loss = 0
+        train_loss, correct = 0.0, 0.0
         data_time, iter_time = 0.0, 0.0
         start_time = time.perf_counter()
         for _, (value, target) in enumerate(loader):
@@ -219,11 +228,14 @@ class EvalSimCLR(Trainer):
             data_time += time.perf_counter() - start_time
 
             # do training step
-            _, loss = self.train_step(value, target)
+            pred, loss = self.train_step(value, target)
             iter_time += time.perf_counter() - start_time
 
             # get loss
             train_loss += loss.item()
+            # get accuracy
+            pred = torch.argmax(F.softmax(pred, dim=1), dim=1)
+            correct += pred.eq(target.view_as(pred)).sum().item()
             if verbose:
                 loader.set_description(f"train loss: {loss.item():.4f}")
 
@@ -231,9 +243,10 @@ class EvalSimCLR(Trainer):
         if self.scheduler:
             self.scheduler.step()
         return {
-            "train_loss": train_loss / len(dataloader),
-            "data_time": data_time / len(dataloader),
-            "iter_time": iter_time / len(dataloader),
+            "train_loss": train_loss / (len(dataloader) / len(self.configs.gpus)),
+            "train_acc": correct / (len(dataloader.dataset) / len(self.configs.gpus)),
+            "data_time": data_time / (len(dataloader) / len(self.configs.gpus)),
+            "iter_time": iter_time / (len(dataloader) / len(self.configs.gpus)),
         }
 
     def test_epoch(self, dataloader, verbose=True) -> list:
@@ -243,14 +256,22 @@ class EvalSimCLR(Trainer):
         if verbose:
             loader = tqdm(loader, ncols=shutil.get_terminal_size().columns)
 
-        test_loss = 0
+        test_loss, correct = 0.0, 0.0
         with torch.no_grad():
             for _, (value, target) in enumerate(loader):
                 value, target = value.to(self.device), target.to(self.device)
-                _, loss = self.test_step(value, target)
+                # do test step
+                pred, loss = self.test_step(value, target)
 
+                # get loss
                 test_loss += loss.item()
+                # get accuracy
+                pred = torch.argmax(F.softmax(pred, dim=1), dim=1)
+                correct += pred.eq(target.view_as(pred)).sum().item()
                 if verbose:
                     loader.set_description(f"test loss: {loss.item():.4f}")
 
-        return {"test_loss": test_loss / len(dataloader)}
+        return {
+            "test_loss": test_loss / (len(dataloader) / len(self.configs.gpus)),
+            "test_acc": correct / (len(dataloader.dataset) / len(self.configs.gpus)),
+        }

@@ -69,7 +69,7 @@ def prepare_dataloaders(rank: int, world_size: int, configs):
             )
 
         case "nfs":
-            transform = transform = transforms.Compose(
+            transform = transforms.Compose(
                 [
                     transforms.RandomResizedCrop(
                         256,

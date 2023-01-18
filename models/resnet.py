@@ -59,10 +59,10 @@ class ResNet(Trainer):
         if self.scheduler:
             self.scheduler.step()
         return {
-            "train_loss": train_loss / len(dataloader),
+            "train_loss": train_loss / (len(dataloader) / len(self.configs.gpus)),
             "train_acc": correct / (len(dataloader.dataset) / len(self.configs.gpus)),
-            "data_time": data_time / len(dataloader),
-            "iter_time": iter_time / len(dataloader),
+            "data_time": data_time / (len(dataloader) / len(self.configs.gpus)),
+            "iter_time": iter_time / (len(dataloader) / len(self.configs.gpus)),
         }
 
     def test_epoch(self, dataloader, verbose=True) -> list:
@@ -88,6 +88,6 @@ class ResNet(Trainer):
                     loader.set_description(f"test loss: {loss.item():.4f}")
 
         return {
-            "test_loss": test_loss / len(dataloader),
+            "test_loss": test_loss / (len(dataloader) / len(self.configs.gpus)),
             "test_acc": correct / (len(dataloader.dataset) / len(self.configs.gpus)),
         }

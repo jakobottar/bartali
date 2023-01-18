@@ -1,9 +1,9 @@
 arch: resnet50
 name: random
-chkpt_file: ./nfs.pth
-dataset: nfs
-dataset_location: /scratch/jakobj/multimag
-batch_size: 64
+chkpt_file: ./cifar.pth
+dataset: cifar
+dataset_location: /scratch/jakobj/cifar
+batch_size: 1024
 workers: 2
 lr_schedule: "exponential"
 lr_gamma: 0.99
@@ -14,4 +14,4 @@ find_unused_parameters: False
 seed: -1
 gpus: [0, 1, 2, 3]
 optimizer: "adam"
-port: "1234"
+port: "1235"

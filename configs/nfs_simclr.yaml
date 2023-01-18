@@ -5,7 +5,7 @@ dataset_location: /scratch/jakobj/multimag
 batch_size: 64
 workers: 2
 lr_schedule: cosine-anneal
-epochs: 200
+epochs: 250
 lr: 4.
 weight_decay: 1.0e-6
 tau: 1.
@@ -14,4 +14,4 @@ find_unused_parameters: True
 seed: -1
 gpus: [0, 1, 2, 3]
 optimizer: "lars"
-port: "1234"
+port: "1235"
