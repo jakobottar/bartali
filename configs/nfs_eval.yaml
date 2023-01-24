@@ -5,13 +5,14 @@ dataset: nfs
 dataset_location: /scratch/jakobj/multimag
 batch_size: 64
 workers: 2
-lr_schedule: "exponential"
+lr_schedule: exponential
 lr_gamma: 0.99
 epochs: 100
 lr: 0.01
 weight_decay: 1.0e-6
 find_unused_parameters: False
+multi_mag_majority_vote: True
 seed: -1
-gpus: [0, 1, 2, 3]
+gpus: [0, 1]
 optimizer: "adam"
 port: "1234"

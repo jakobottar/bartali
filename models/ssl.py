@@ -165,6 +165,11 @@ class EvalSimCLR(Trainer):
         self.encoder.to(self.device)
         return self
 
+    def step(self, value, target):
+        value = self.encoder(value, out="h")
+        return super().step(value, target)
+
+    # TODO: fix for use with all mags
     def precompute_encodings(self, dataloader: DataLoader, shuffle: bool = True):
         print("===> preprocessing encodings...")
         encodings, labels = [], []
@@ -258,16 +263,22 @@ class EvalSimCLR(Trainer):
 
         test_loss, correct = 0.0, 0.0
         with torch.no_grad():
-            for _, (value, target) in enumerate(loader):
-                value, target = value.to(self.device), target.to(self.device)
-                # do test step
-                pred, loss = self.test_step(value, target)
+            for _, (values, target) in enumerate(loader):
+                preds = torch.zeros((len(values), target.shape[0]), device=self.device)
+                for i, value in enumerate(values):
+                    value, target = value.to(self.device), target.to(self.device)
 
-                # get loss
-                test_loss += loss.item()
-                # get accuracy
-                pred = torch.argmax(F.softmax(pred, dim=1), dim=1)
-                correct += pred.eq(target.view_as(pred)).sum().item()
+                    # do test step
+                    pred, loss = self.test_step(value, target)
+
+                    # get loss
+                    test_loss += loss.item()
+                    # get accuracy
+                    preds[i] = torch.argmax(F.softmax(pred, dim=1), dim=1)
+
+                preds = torch.mode(preds, dim=0).values
+                correct += preds.eq(target).sum().item()
+                test_loss /= len(values)
                 if verbose:
                     loader.set_description(f"test loss: {loss.item():.4f}")
 
