@@ -23,6 +23,9 @@ class ConfigStruct:
     weight_decay: float = 1e-9  # float, optimizer weight decay
 
     find_unused_parameters: bool = False  # should DDP find unused parameters
+    multi_mag_majority_vote: bool = (
+        False  # should eval use majority vote on all magnifications?
+    )
 
     seed: int = -1  # random seed, -1 for random
     gpus: str | tuple = (0,)  # str or tuple, gpu(s) to use

@@ -76,6 +76,7 @@ class ResNet(Trainer):
         with torch.no_grad():
             for _, (value, target) in enumerate(loader):
                 value, target = value.to(self.device), target.to(self.device)
+
                 # do testing step
                 pred, loss = self.test_step(value, target)
                 # get loss

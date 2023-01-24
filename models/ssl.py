@@ -9,7 +9,6 @@ from torch import nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
-import torch.distributed as dist
 import numpy as np
 import scipy
 
@@ -108,6 +107,7 @@ class SimCLR(Trainer):
         with torch.no_grad():
             for _, (value, target) in enumerate(loader):
                 value, target = value.to(self.device), target.to(self.device)
+
                 _, loss = self.test_step(value, target)
 
                 test_loss += loss.item()

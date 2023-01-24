@@ -86,12 +86,14 @@ def prepare_dataloaders(rank: int, world_size: int, configs):
                 configs.dataset_location,
                 train=True,
                 transform=transform,
+                get_all_mag=configs.multi_mag_majority_vote,
             )
 
             test_dataset = MagImageDataset(
                 configs.dataset_location,
                 train=False,
                 transform=transform,
+                get_all_mag=configs.multi_mag_majority_vote,
             )
 
         case _:
