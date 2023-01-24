@@ -264,23 +264,40 @@ class EvalSimCLR(Trainer):
         test_loss, correct = 0.0, 0.0
         with torch.no_grad():
             for _, (values, target) in enumerate(loader):
-                preds = torch.zeros((len(values), target.shape[0]), device=self.device)
-                for i, value in enumerate(values):
-                    value, target = value.to(self.device), target.to(self.device)
+                if self.configs.dataset == "nfs":
+                    preds = torch.zeros(
+                        (len(values), target.shape[0]), device=self.device
+                    )
+                    for i, value in enumerate(values):
+                        value, target = value.to(self.device), target.to(self.device)
+
+                        # do test step
+                        pred, loss = self.test_step(value, target)
+
+                        # get loss
+                        test_loss += loss.item()
+                        # get accuracy
+                        preds[i] = torch.argmax(F.softmax(pred, dim=1), dim=1)
+
+                    preds = torch.mode(preds, dim=0).values
+                    correct += preds.eq(target).sum().item()
+                    test_loss /= len(values)
+                    if verbose:
+                        loader.set_description(f"test loss: {loss.item():.4f}")
+
+                else:
+                    values, target = values.to(self.device), target.to(self.device)
 
                     # do test step
-                    pred, loss = self.test_step(value, target)
+                    pred, loss = self.test_step(values, target)
 
                     # get loss
                     test_loss += loss.item()
                     # get accuracy
-                    preds[i] = torch.argmax(F.softmax(pred, dim=1), dim=1)
-
-                preds = torch.mode(preds, dim=0).values
-                correct += preds.eq(target).sum().item()
-                test_loss /= len(values)
-                if verbose:
-                    loader.set_description(f"test loss: {loss.item():.4f}")
+                    pred = torch.argmax(F.softmax(pred, dim=1), dim=1)
+                    correct += pred.eq(target).sum().item()
+                    if verbose:
+                        loader.set_description(f"test loss: {loss.item():.4f}")
 
         return {
             "test_loss": test_loss / (len(dataloader) / len(self.configs.gpus)),
