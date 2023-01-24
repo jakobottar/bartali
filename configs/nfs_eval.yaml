@@ -7,7 +7,7 @@ batch_size: 64
 workers: 2
 lr_schedule: exponential
 lr_gamma: 0.99
-epochs: 100
+epochs: 150
 lr: 0.01
 weight_decay: 1.0e-6
 find_unused_parameters: False

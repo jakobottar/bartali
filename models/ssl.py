@@ -166,7 +166,8 @@ class EvalSimCLR(Trainer):
         return self
 
     def step(self, value, target):
-        value = self.encoder(value, out="h")
+        if self.configs.dataset == "nfs":
+            value = self.encoder(value, out="h")
         return super().step(value, target)
 
     # TODO: fix for use with all mags
@@ -183,6 +184,8 @@ class EvalSimCLR(Trainer):
 
         encodings = torch.stack(encodings)
         labels = torch.stack(labels)
+        # print(f"encodings:{encodings.shape}")
+        # print(f"labels:{labels.shape}")
 
         dataset = torch.utils.data.TensorDataset(
             torch.FloatTensor(encodings),
