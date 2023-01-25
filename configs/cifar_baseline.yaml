@@ -5,10 +5,10 @@ dataset_location: /scratch/jakobj/cifar
 batch_size: 1024
 workers: 2
 lr: 0.001
-lr_schedule: "exponential"
+lr_schedule: exponential
 lr_gamma: 0.97
 epochs: 200
 weight_decay: 1.0e-4
 seed: -1
 gpus: [0, 1, 2, 3]
-port: "1234"
+port: 1234

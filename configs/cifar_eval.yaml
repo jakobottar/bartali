@@ -6,12 +6,12 @@ dataset_location: /scratch/jakobj/cifar
 batch_size: 512
 workers: 2
 lr_schedule: exponential
-lr_gamma: 0.99
+lr_gamma: 0.97
 epochs: 150
 lr: 0.01
 weight_decay: 1.0e-6
 find_unused_parameters: False
 seed: -1
-gpus: [0, 1]
-optimizer: "adam"
-port: "1235"
+gpus: [0, 1, 2, 3]
+optimizer: adam
+port: 1235
