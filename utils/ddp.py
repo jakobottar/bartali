@@ -69,7 +69,7 @@ def prepare_dataloaders(rank: int, world_size: int, configs):
             )
 
         case "nfs":
-            transform = transform = transforms.Compose(
+            transform = transforms.Compose(
                 [
                     transforms.RandomResizedCrop(
                         256,
@@ -86,12 +86,14 @@ def prepare_dataloaders(rank: int, world_size: int, configs):
                 configs.dataset_location,
                 train=True,
                 transform=transform,
+                get_all_mag=False,
             )
 
             test_dataset = MagImageDataset(
                 configs.dataset_location,
                 train=False,
                 transform=transform,
+                get_all_mag=configs.multi_mag_majority_vote,
             )
 
         case _:

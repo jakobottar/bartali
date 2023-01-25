@@ -6,6 +6,7 @@ runs/
 mlruns/
 logs/
 data/
+*.pth
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

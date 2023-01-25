@@ -153,8 +153,8 @@ class Trainer:
     def test_step(self, value, target) -> Tuple[Tensor, Tensor]:
         return self.step(value, target)
 
-    def train_epoch(self) -> None:
+    def train_epoch(self) -> dict:
         raise NotImplementedError("'train_epoch' not reimplemented in child class.")
 
-    def test_epoch(self) -> None:
+    def test_epoch(self) -> dict:
         raise NotImplementedError("'test_epoch' not reimplemented in child class.")

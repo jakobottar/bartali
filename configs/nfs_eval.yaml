@@ -1,14 +1,18 @@
 arch: resnet50
 name: random
+chkpt_file: ./nfs.pth
 dataset: nfs
 dataset_location: /scratch/jakobj/multimag
 batch_size: 64
 workers: 2
-lr: 0.001
 lr_schedule: exponential
 lr_gamma: 0.97
-epochs: 200
-weight_decay: 1.0e-4
+epochs: 150
+lr: 0.01
+weight_decay: 1.0e-6
+find_unused_parameters: False
+multi_mag_majority_vote: True
 seed: -1
 gpus: [0, 1, 2, 3]
+optimizer: adam
 port: 1234

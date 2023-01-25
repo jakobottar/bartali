@@ -7,7 +7,6 @@ import random
 from torch.utils.data.sampler import BatchSampler
 from torch.utils.data import Dataset
 
-# from torchvision import io
 from PIL import Image
 
 ROUTES = [
@@ -37,12 +36,15 @@ class MultiplyBatchSampler(BatchSampler):
 class MagImageDataset(Dataset):
     """Custom processing route dataset"""
 
-    def __init__(self, root: str, train: bool = True, transform=None) -> None:
+    def __init__(
+        self, root: str, train: bool = True, transform=None, get_all_mag: bool = False
+    ) -> None:
         super().__init__()
         self.images, self.labels = self.__parse_datafile(
             os.path.join(root, "train.txt" if train else "test.txt")
         )
         self.transform = transform
+        self.all_mag = get_all_mag
         self.root = os.path.join(root)
 
     # TODO: I'm not a huge fan of the data file format, can I make it better?
@@ -84,18 +86,27 @@ class MagImageDataset(Dataset):
         return len(self.labels)
 
     def __getitem__(self, idx):
-        rand_mag = random.randint(0, 3)
-        image_path = os.path.join(self.root, self.images[f"mag{rand_mag}"][idx])
-        image = Image.open(image_path).convert("RGB")
-        # image = io.read_image(image_path, mode=io.ImageReadMode.RGB).float() / 255
         label = int(self.labels[idx])
 
-        if self.transform:
-            image = self.transform(image)
+        # get all magnifications
+        if self.all_mag:
+            image = []
+            for mag in range(4):
+                image_path = os.path.join(self.root, self.images[f"mag{mag}"][idx])
+                image_mag = Image.open(image_path).convert("RGB")
+
+                if self.transform:
+                    image_mag = self.transform(image_mag)
+
+                image.append(image_mag)
+
+        # get a random magnification
+        else:
+            rand_mag = random.randint(0, 3)
+            image_path = os.path.join(self.root, self.images[f"mag{rand_mag}"][idx])
+            image = Image.open(image_path).convert("RGB")
+
+            if self.transform:
+                image = self.transform(image)
 
         return image, label
-
-
-if __name__ == "__main__":
-    dataset = RouteImageDataset("/scratch/jakobj/multimag/")
-    print(next(iter(dataset)))
