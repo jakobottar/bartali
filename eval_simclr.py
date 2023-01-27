@@ -2,6 +2,7 @@
 evaluator head for simclr model
 """
 import os
+import shutil
 import time
 import random
 import argparse
@@ -50,9 +51,10 @@ def worker(rank, world_size, configs):
 
     if rank == 0:
         mlflow.set_tracking_uri("http://tularosa.sci.utah.edu:5000")
-        mlflow.set_experiment("bartali")
+        mlflow.set_experiment("bartali-new")
         mlflow.start_run(run_name=configs.name)
         mlflow.log_params(configs.as_dict())
+        best_metric = -9999
 
     # make structures for all_gather
     data = {
@@ -72,15 +74,18 @@ def worker(rank, world_size, configs):
         dist.all_gather_object(outputs, data)
 
         if rank == 0:
-            mlflow.log_metrics(utils.roll_objects(outputs), step=epoch)
+            metrics = utils.roll_objects(outputs)
+            mlflow.log_metrics(metrics, step=epoch)
             mlflow.log_metric(
                 "learning_rate", eval_simclr.scheduler.get_last_lr()[0], step=epoch
             )
-            torch.save(eval_simclr.get_ckpt(), f"{configs.root}/checkpoint-{epoch}.pth")
+            if metrics["test_loss"] < best_metric:
+                torch.save(eval_simclr.get_ckpt(), f"{configs.root}/best.pth")
             print(f"{time.time() - start_time:.2f} sec")
 
     if rank == 0:
-        torch.save(eval_simclr.get_ckpt(), f"{configs.root}/model.pth")
+        torch.save(eval_simclr.get_ckpt(), f"{configs.root}/last.pth")
+        mlflow.log_artifacts(configs.root)
 
     dist.barrier()
     print("done!")
@@ -113,6 +118,7 @@ if __name__ == "__main__":
     except FileExistsError as error:
         pass
     configs.root = f"{configs.root}/{configs.name}"
+    shutil.copy(args.config, os.path.join(configs.root, "config.yaml"))
 
     world_size = len(configs.gpus)
 
