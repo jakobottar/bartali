@@ -51,7 +51,7 @@ def worker(rank, world_size, configs):
 
     if rank == 0:
         mlflow.set_tracking_uri("http://tularosa.sci.utah.edu:5000")
-        mlflow.set_experiment("bartali-new")
+        mlflow.set_experiment("bartali2")
         mlflow.start_run(run_name=configs.name)
         mlflow.log_params(configs.as_dict())
         best_metric = -9999
@@ -79,7 +79,7 @@ def worker(rank, world_size, configs):
             mlflow.log_metric(
                 "learning_rate", eval_simclr.scheduler.get_last_lr()[0], step=epoch
             )
-            if metrics["test_loss"] < best_metric:
+            if metrics["test_loss"] > best_metric:
                 torch.save(eval_simclr.get_ckpt(), f"{configs.root}/best.pth")
             print(f"{time.time() - start_time:.2f} sec")
 
