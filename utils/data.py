@@ -4,6 +4,7 @@ data utils
 
 import os
 import random
+import pandas as pd
 from torch.utils.data.sampler import BatchSampler
 from torch.utils.data import Dataset
 
@@ -110,3 +111,46 @@ class MagImageDataset(Dataset):
                 image = self.transform(image)
 
         return image, label
+
+
+class OODDataset(Dataset):
+    def __init__(self, root: str, transform=None, get_all_mag: bool = False) -> None:
+        super().__init__()
+        self.df = pd.read_csv(f"{root}/ood.csv").drop(columns=["particle", "rep"])
+        self.transform = transform
+        self.all_mag = get_all_mag
+        self.root = os.path.join(root)
+
+    def __len__(self):
+        return len(self.df)
+
+    def __getitem__(self, idx):
+        files = self.df.iloc[idx].dropna().values
+
+        # get all magnifications
+        if self.all_mag:
+            image = []
+            for filepath in files:
+                filepath = os.path.join(self.root, filepath)
+                image_mag = Image.open(filepath).convert("RGB")
+
+                if self.transform:
+                    image_mag = self.transform(image_mag)
+
+                image.append(image_mag)
+
+        # get a random magnification
+        else:
+            rand_mag = random.randint(0, len(files))
+            image_path = os.path.join(self.root, files[rand_mag])
+            image = Image.open(image_path).convert("RGB")
+
+            if self.transform:
+                image = self.transform(image)
+
+        return image
+
+
+if __name__ == "__main__":
+    dataset = OODDataset("/scratch/jakobj/multimag", get_all_mag=True)
+    print(dataset[0])
