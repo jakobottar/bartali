@@ -114,39 +114,49 @@ class MagImageDataset(Dataset):
 
 
 class OODDataset(Dataset):
-    def __init__(self, root: str, transform=None, get_all_mag: bool = False) -> None:
+    def __init__(
+        self,
+        root: str,
+        transform=None,
+        get_all_mag: bool = False,
+        random_noise: bool = False,
+    ) -> None:
         super().__init__()
-        self.df = pd.read_csv(f"{root}/ood.csv").drop(columns=["particle", "rep"])
+        self.df = pd.read_csv(f"{root}/ood.csv")
         self.transform = transform
         self.all_mag = get_all_mag
+        self.random_noise = random_noise
         self.root = os.path.join(root)
 
     def __len__(self):
         return len(self.df)
 
     def __getitem__(self, idx):
-        files = self.df.iloc[idx].dropna().values
+        if self.random_noise:
+            pass
+        else:
+            files = self.df.iloc[idx].dropna().values
 
-        # get all magnifications
-        if self.all_mag:
-            image = []
-            for filepath in files:
-                filepath = os.path.join(self.root, filepath)
-                image_mag = Image.open(filepath).convert("RGB")
+            # get all magnifications
+            if self.all_mag:
+                image = []
+                for filepath in files:
+                    filepath = os.path.join(self.root, filepath)
+                    image_mag = Image.open(filepath).convert("RGB")
+
+                    if self.transform:
+                        image_mag = self.transform(image_mag)
+
+                    image.append(image_mag)
+
+            # get a random magnification
+            else:
+                rand_mag = random.randint(0, len(files))
+                image_path = os.path.join(self.root, files[rand_mag])
+                image = Image.open(image_path).convert("RGB")
 
                 if self.transform:
-                    image_mag = self.transform(image_mag)
-
-                image.append(image_mag)
-
-        # get a random magnification
-        else:
-            rand_mag = random.randint(0, len(files))
-            image_path = os.path.join(self.root, files[rand_mag])
-            image = Image.open(image_path).convert("RGB")
-
-            if self.transform:
-                image = self.transform(image)
+                    image = self.transform(image)
 
         return image
 
