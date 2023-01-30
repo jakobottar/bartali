@@ -151,7 +151,7 @@ class OODDataset(Dataset):
 
             # get a random magnification
             else:
-                rand_mag = random.randint(0, len(files))
+                rand_mag = random.randint(0, len(files) - 1)
                 image_path = os.path.join(self.root, files[rand_mag])
                 image = Image.open(image_path).convert("RGB")
 
