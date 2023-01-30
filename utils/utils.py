@@ -1,6 +1,9 @@
 from dataclasses import dataclass, asdict
 import yaml
 
+import torch
+from torch import Tensor
+
 
 @dataclass
 class ConfigStruct:
@@ -63,3 +66,32 @@ def roll_objects(objects: list, method="mean"):
             rolled[key] /= len(objects)
 
     return rolled
+
+
+def variance(model_pred: Tensor, branch_preds: Tensor) -> Tensor:
+    """
+    Computes variance metric for uncertainty quantification.
+    Parameters
+    ----------
+    model_pred : `torch.Tensor`, voted or averaged prediction for ensemble model
+    branch_preds : `torch.Tensor`, predictions for each branch or run, should be of shape `E * N`
+    """
+
+    var = 0.0
+    for branch_pred in branch_preds:
+        var += torch.sum(branch_pred != model_pred)
+
+    return var / (branch_preds.shape[0] * branch_preds.shape[1])
+
+
+def entropy(logits, base="two"):
+    """compute entropy of logits"""
+    if base == "two" or base == 2:
+        # use nansum because 0 predictions give nan values (and log(0) = nan)
+        return -torch.nansum(logits * torch.log2(logits), dim=1)
+    elif base == "ten" or base == 10:
+        return -torch.nansum(logits * torch.log10(logits), dim=1)
+    elif base == "natural" or base == "e":
+        return -torch.nansum(logits * torch.log(logits), dim=1)
+    else:
+        raise NotImplementedError(f"No log found for base {base}")
