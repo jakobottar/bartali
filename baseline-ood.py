@@ -262,7 +262,7 @@ if __name__ == "__main__":
     with mlflow.start_run(run_name=NAME):
         LEARNING_RATE = 0.001
         LR_GAMMA = 0.97
-        BACKBONE = "densenet121"
+        BACKBONE = "resnet50"
 
         if FLAGS.dataset == "cifar":
             BATCH_SIZE = 256

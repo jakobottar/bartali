@@ -11,6 +11,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 import numpy as np
 import scipy
+import sklearn.metrics as sk
 
 import utils
 
@@ -165,9 +166,12 @@ class EvalSimCLR(Trainer):
         self.encoder.to(self.device)
         return self
 
+    def encode_step(self, value):
+        return self.encoder(value, out="h")
+
     def step(self, value, target):
         if self.configs.dataset == "nfs":
-            value = self.encoder(value, out="h")
+            value = self.encode_step(value)
         return super().step(value, target)
 
     # TODO: fix for use with all mags
@@ -178,7 +182,7 @@ class EvalSimCLR(Trainer):
         with torch.no_grad():
             for _, (value, target) in enumerate(dataloader):
                 value = value.to(self.device)
-                enc = self.encoder(value, out="h")
+                enc = self.encode_step(value)
                 encodings.extend(list(enc.cpu()))
                 labels.extend(list(target))
 
@@ -217,6 +221,11 @@ class EvalSimCLR(Trainer):
             else:
                 model_dict = model_state_dict
         self.encoder.load_state_dict(model_dict)
+
+    def ood_metric(self, values):
+        values = values.to(self.device)
+        encodings = self.encode_step(values).cpu().numpy()
+        return np.var(encodings)
 
     def train_epoch(self, dataloader, verbose=True) -> dict:
         self.train()
@@ -257,16 +266,16 @@ class EvalSimCLR(Trainer):
             "iter_time": iter_time / (len(dataloader) / len(self.configs.gpus)),
         }
 
-    def test_epoch(self, dataloader, verbose=True) -> list:
+    def test_epoch(self, test_loader, ood_loader, verbose=False) -> list:
         self.eval()
 
-        loader = iter(dataloader)
-        if verbose:
-            loader = tqdm(loader, ncols=shutil.get_terminal_size().columns)
+        iter_test_loader = iter(test_loader)
+        iter_ood_loader = iter(ood_loader)
 
         test_loss, correct = 0.0, 0.0
+        conf_right, conf_wrong, conf_ood = [], [], []
         with torch.no_grad():
-            for _, (values, target) in enumerate(loader):
+            for _, (values, target) in enumerate(iter_test_loader):
                 if self.configs.dataset == "nfs":
                     preds = torch.zeros(
                         (len(values), target.shape[0]), device=self.device
@@ -283,26 +292,87 @@ class EvalSimCLR(Trainer):
                         preds[i] = torch.argmax(F.softmax(pred, dim=1), dim=1)
 
                     preds = torch.mode(preds, dim=0).values
-                    correct += preds.eq(target).sum().item()
+                    r = preds.eq(target.view_as(preds))  # idx of correct predslen
+                    # TODO: fix this!
+                    for i, is_correct in enumerate(r):
+                        chunk = torch.zeros(
+                            size=(
+                                len(values),
+                                values[0].shape[1],
+                                values[0].shape[2],
+                                values[0].shape[3],
+                            )
+                        )
+                        for j, value in enumerate(values):
+                            chunk[j] = value[i]
+
+                        if is_correct:
+                            conf_right.append(self.ood_metric(chunk))
+                        else:
+                            conf_wrong.append(self.ood_metric(chunk))
+
+                    correct += r.sum().item()
                     test_loss /= len(values)
-                    if verbose:
-                        loader.set_description(f"test loss: {loss.item():.4f}")
 
                 else:
-                    values, target = values.to(self.device), target.to(self.device)
+                    raise (NotImplementedError)
 
-                    # do test step
-                    pred, loss = self.test_step(values, target)
+            for _, values in enumerate(iter_ood_loader):
+                if self.configs.dataset == "nfs":
+                    for i, _ in enumerate(values[0]):
+                        chunk = torch.zeros(
+                            size=(
+                                len(values),
+                                values[0].shape[1],
+                                values[0].shape[2],
+                                values[0].shape[3],
+                            )
+                        )
+                        for j, value in enumerate(values):
+                            chunk[j] = value[i]
 
-                    # get loss
-                    test_loss += loss.item()
-                    # get accuracy
-                    pred = torch.argmax(F.softmax(pred, dim=1), dim=1)
-                    correct += pred.eq(target).sum().item()
-                    if verbose:
-                        loader.set_description(f"test loss: {loss.item():.4f}")
+                        conf_ood.append(self.ood_metric(chunk))
+                else:
+                    raise (NotImplementedError)
+                    # values, target = values.to(self.device), target.to(self.device)
+
+                    # # do test step
+                    # pred, loss = self.test_step(values, target)
+
+                    # # get loss
+                    # test_loss += loss.item()
+                    # # get accuracy
+                    # pred = torch.argmax(F.softmax(pred, dim=1), dim=1)
+                    # r = preds.eq(target.view_as(preds))  # idx of correct preds
+                    # conf_right.append(self.ood_metric(values[r]))
+                    # conf_wrong.append(self.ood_metric(values[~r]))
+                    # correct += r.sum().item()
+
+        in_labels = np.concatenate(
+            [
+                np.ones((len(conf_right),), dtype=int),
+                np.zeros((len(conf_wrong),), dtype=int),
+            ]
+        )
+        out_labels = np.concatenate(
+            [
+                np.ones((len(conf_right),), dtype=int),
+                np.zeros((len(conf_ood),), dtype=int),
+            ]
+        )
+        in_values = np.concatenate([conf_right, conf_wrong])
+        out_values = np.concatenate([conf_right, conf_ood])
+
+        auroc_in = sk.roc_auc_score(in_labels, in_values)
+        auroc_out = sk.roc_auc_score(out_labels, out_values)
 
         return {
-            "test_loss": test_loss / (len(dataloader) / len(self.configs.gpus)),
-            "test_acc": correct / (len(dataloader.dataset) / len(self.configs.gpus)),
+            "val_loss": test_loss / (len(test_loader) / len(self.configs.gpus)),
+            "val_acc": correct / (len(test_loader.dataset) / len(self.configs.gpus)),
+            "val_conf_right": np.mean(conf_right),
+            "val_conf_wrong": np.mean(conf_wrong),
+            "val_conf_ood": np.mean(conf_ood),
+            "val_conf_all": (np.mean(conf_right) + np.mean(conf_wrong)) / 2,
+            "val_auroc_in": auroc_in,
+            "val_auroc_out": auroc_out,
         }
