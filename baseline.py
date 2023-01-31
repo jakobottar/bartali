@@ -80,7 +80,10 @@ def worker(rank, world_size, configs):
         resnet.scheduler.step()
 
     if rank == 0:
-        torch.save(resnet.get_ckpt(), f"{configs.root}/last.pth")
+        # torch.save(resnet.get_ckpt(), f"{configs.root}/last.pth")
+        mlflow.pytorch.log_model(
+            resnet.get_model(), "model", pip_requirements="requirements.txt"
+        )
         mlflow.log_artifacts(configs.root)
 
     print("done!")

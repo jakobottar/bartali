@@ -51,10 +51,7 @@ def worker(rank, world_size, configs):
         best_metric = 9999
 
     # make structures for all_gather
-    data = {
-        "train_stats": None,
-        "test_stats": None,
-    }
+    data = {"train_stats": None, "test_stats": None}
     outputs = [None for _ in range(world_size)]
 
     for epoch in range(1, configs.epochs + 1):
@@ -78,7 +75,10 @@ def worker(rank, world_size, configs):
             print(f"{time.time() - start_time:.2f} sec")
 
     if rank == 0:
-        torch.save(simclr.get_ckpt(), f"{configs.root}/last.pth")
+        # torch.save(simclr.get_ckpt(), f"{configs.root}/last.pth")
+        mlflow.pytorch.log_model(
+            simclr.get_model(), "model", pip_requirements="requirements.txt"
+        )
         mlflow.log_artifacts(configs.root)
 
     dist.barrier()

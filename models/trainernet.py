@@ -47,6 +47,9 @@ class Trainer:
         self.set_up_loss()  # re-set up loss, in case of ddp dependencies
         return self
 
+    def get_model(self) -> nn.Module:
+        return self.model
+
     def get_ckpt(self) -> OrderedDict:
         if self.mode == "standard":
             return self.model.state_dict()
