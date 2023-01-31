@@ -8,7 +8,7 @@ from torch.utils.data.distributed import DistributedSampler
 from torchvision import datasets, transforms
 
 from .data import MultiplyBatchSampler
-from .data import MagImageDataset
+from .data import MagImageDataset, OODDataset
 
 
 def setup(rank, world_size, port="1234"):
@@ -37,7 +37,9 @@ class Clamp(object):
         return torch.clamp(x, 0, 1)
 
 
-def prepare_dataloaders(rank: int, world_size: int, configs):
+def prepare_dataloaders(
+    rank: int, world_size: int, configs, include_ood_dataloader: bool = False
+):
 
     match configs.dataset:
         case "cifar":
@@ -68,6 +70,12 @@ def prepare_dataloaders(rank: int, world_size: int, configs):
                 transform=transform,
             )
 
+            ood_dataset = datasets.SVHN(
+                configs.dataset_location,
+                download=False,
+                transform=transform,
+            )
+
         case "nfs":
             transform = transforms.Compose(
                 [
@@ -92,6 +100,12 @@ def prepare_dataloaders(rank: int, world_size: int, configs):
             test_dataset = MagImageDataset(
                 configs.dataset_location,
                 train=False,
+                transform=transform,
+                get_all_mag=configs.multi_mag_majority_vote,
+            )
+
+            ood_dataset = OODDataset(
+                configs.dataset_location,
                 transform=transform,
                 get_all_mag=configs.multi_mag_majority_vote,
             )
@@ -125,5 +139,19 @@ def prepare_dataloaders(rank: int, world_size: int, configs):
         num_workers=configs.workers,
         batch_sampler=batch_sampler(test_sampler, configs.batch_size, drop_last=True),
     )
+
+    if include_ood_dataloader:
+        ood_sampler = DistributedSampler(ood_dataset)
+
+        ood_dataloader = DataLoader(
+            ood_dataset,
+            pin_memory=True,
+            num_workers=configs.workers,
+            batch_sampler=batch_sampler(
+                ood_sampler, configs.batch_size, drop_last=True
+            ),
+        )
+
+        return train_dataloader, test_dataloader, ood_dataloader
 
     return train_dataloader, test_dataloader

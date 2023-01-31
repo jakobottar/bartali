@@ -34,8 +34,8 @@ def worker(rank, world_size, configs):
     torch.cuda.set_device(configs.gpus[rank])
 
     # prepare the dataloader
-    train_dataloader, test_dataloader = utils.prepare_dataloaders(
-        rank, world_size, configs
+    train_dataloader, test_dataloader, ood_dataloader = utils.prepare_dataloaders(
+        rank, world_size, configs, include_ood_dataloader=True
     )
 
     # set up model
@@ -69,7 +69,9 @@ def worker(rank, world_size, configs):
             start_time = time.time()
 
         data["train_stats"] = eval_simclr.train_epoch(train_dataloader, verbose=False)
-        data["test_stats"] = eval_simclr.test_epoch(test_dataloader, verbose=False)
+        data["test_stats"] = eval_simclr.test_epoch(
+            test_dataloader, ood_dataloader, verbose=False
+        )
 
         dist.all_gather_object(outputs, data)
 
@@ -79,7 +81,7 @@ def worker(rank, world_size, configs):
             mlflow.log_metric(
                 "learning_rate", eval_simclr.scheduler.get_last_lr()[0], step=epoch
             )
-            if metrics["test_loss"] > best_metric:
+            if metrics["val_loss"] > best_metric:
                 torch.save(eval_simclr.get_ckpt(), f"{configs.root}/best.pth")
             print(f"{time.time() - start_time:.2f} sec")
 
