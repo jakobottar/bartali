@@ -258,7 +258,7 @@ def plot_from_dl(model, dataloader, filename, title):
 
 if __name__ == "__main__":
     mlflow.set_tracking_uri("http://tularosa.sci.utah.edu:5000")
-    mlflow.set_experiment("bartali2")
+    mlflow.set_experiment("bartali-artifacts")
     with mlflow.start_run(run_name=NAME):
         LEARNING_RATE = 0.001
         LR_GAMMA = 0.97
