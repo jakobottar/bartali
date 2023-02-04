@@ -92,16 +92,18 @@ def prepare_dataloaders(
             )
             train_dataset = MagImageDataset(
                 configs.dataset_location,
-                train=True,
+                split="train",
                 transform=transform,
                 get_all_mag=False,
+                ood_classes=["UO3AUC", "U3O8MDU"],
             )
 
             test_dataset = MagImageDataset(
                 configs.dataset_location,
-                train=False,
+                split="test",
                 transform=transform,
                 get_all_mag=configs.multi_mag_majority_vote,
+                ood_classes=["UO3AUC", "U3O8MDU"],
             )
 
             ood_dataset = OODDataset(

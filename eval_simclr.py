@@ -124,7 +124,9 @@ if __name__ == "__main__":
         pass
     configs.root = f"{configs.root}/{configs.name}"
     shutil.copy(args.config, os.path.join(configs.root, "config.yaml"))
+    shutil.copy(configs.chkpt_file, os.path.join(configs.root, "frozen_chkpt.pth"))
 
     world_size = len(configs.gpus)
 
     mp.spawn(worker, args=(world_size, configs), nprocs=world_size, join=True)
+4

@@ -25,6 +25,8 @@ ROUTES = [
     "UO3SDU",
 ]
 
+MAGS = ["10000x", "25000x", "50000x", "100000x"]
+
 
 class MultiplyBatchSampler(BatchSampler):
     multiplier = 2
@@ -38,62 +40,48 @@ class MagImageDataset(Dataset):
     """Custom processing route dataset"""
 
     def __init__(
-        self, root: str, train: bool = True, transform=None, get_all_mag: bool = False
+        self,
+        root: str,
+        split: str = "train",
+        transform=None,
+        get_all_mag: bool = False,
+        ood_classes=[],
     ) -> None:
         super().__init__()
-        self.images, self.labels = self.__parse_datafile(
-            os.path.join(root, "train.txt" if train else "test.txt")
-        )
+        match split:
+            case "train":
+                self.df = pd.read_csv(os.path.join(root, "train_0.csv"))
+                self.df = self.df[self.df.label.isin(ood_classes) == False]
+            case "test" | "val":
+                self.df = pd.read_csv(os.path.join(root, "val_0.csv"))
+                self.df = self.df[self.df.label.isin(ood_classes) == False]
+            case "ood":
+                train_half = pd.read_csv(os.path.join(root, "train_0.csv"))
+                val_half = pd.read_csv(os.path.join(root, "val_0.csv"))
+                self.df = pd.concat(train_half, val_half)
+                self.df = self.df[self.df.label.isin(ood_classes)]
+            case _:
+                raise ValueError(
+                    "Not a valid split, try 'train', 'test', 'val', or 'ood'"
+                )
+        self.df = self.df.reset_index()
+
         self.transform = transform
         self.all_mag = get_all_mag
         self.root = os.path.join(root)
 
-    # TODO: I'm not a huge fan of the data file format, can I make it better?
-    def __parse_datafile(self, datafile) -> None:
-        """
-        Parse train/val text file into a dictionary input
-        -> train/val text file template
-            mag0/img0 mag1/img0 ... label
-            mag0/img1 mag1/img1 ... label
-            ...
-            mag0/imgN mag1/imgN ... label
-        """
-
-        with open(datafile, "r") as file:
-            img_files = {}
-            labels = []
-
-            curr_val = file.readline().strip("\n").split(" ")
-            for vi, v in enumerate(curr_val[:-1]):
-                img_files[f"mag{vi}"] = [v]
-
-            labels.append(ROUTES.index(curr_val[-1]))
-
-            for line in file:
-                try:
-                    curr_val = line.strip("\n").split(" ")
-                except ValueError:  # Adhoc for test.
-                    print("Incompatible text format in data file!")
-
-                ## Obtain file name for each magnification input ##
-                for vi, v in enumerate(curr_val[:-1]):
-                    img_files[f"mag{vi}"].append(v)
-
-                labels.append(ROUTES.index(curr_val[-1]))
-
-            return img_files, labels
-
     def __len__(self):
-        return len(self.labels)
+        return len(self.df) - 2
 
     def __getitem__(self, idx):
-        label = int(self.labels[idx])
+        row = self.df.loc[idx].to_dict()
+        row["label_int"] = int(ROUTES.index(row["label"]))
 
         # get all magnifications
         if self.all_mag:
             image = []
             for mag in range(4):
-                image_path = os.path.join(self.root, self.images[f"mag{mag}"][idx])
+                image_path = os.path.join(self.root, row[MAGS[mag]])
                 image_mag = Image.open(image_path).convert("RGB")
 
                 if self.transform:
@@ -104,13 +92,13 @@ class MagImageDataset(Dataset):
         # get a random magnification
         else:
             rand_mag = random.randint(0, 3)
-            image_path = os.path.join(self.root, self.images[f"mag{rand_mag}"][idx])
+            image_path = os.path.join(self.root, row[MAGS[rand_mag]])
             image = Image.open(image_path).convert("RGB")
 
             if self.transform:
                 image = self.transform(image)
 
-        return image, label
+        return image, row["label_int"]
 
 
 class OODDataset(Dataset):
@@ -162,5 +150,10 @@ class OODDataset(Dataset):
 
 
 if __name__ == "__main__":
-    dataset = OODDataset("/scratch/jakobj/multimag", get_all_mag=True)
-    print(dataset[0])
+    dataset = MagImageDataset(
+        "/scratch/jakobj/multimag", get_all_mag=False, ood_classes=["UO3AUC", "U3O8MDU"]
+    )
+
+    #! this goes out of range... wtf??
+    for i, (img, label) in enumerate(dataset):
+        print(i, img, label)
