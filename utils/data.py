@@ -58,7 +58,7 @@ class MagImageDataset(Dataset):
             case "ood":
                 train_half = pd.read_csv(os.path.join(root, "train_0.csv"))
                 val_half = pd.read_csv(os.path.join(root, "val_0.csv"))
-                self.df = pd.concat(train_half, val_half)
+                self.df = pd.concat([train_half, val_half])
                 self.df = self.df[self.df.label.isin(ood_classes)]
             case _:
                 raise ValueError(
@@ -66,6 +66,7 @@ class MagImageDataset(Dataset):
                 )
         self.df = self.df.reset_index()
 
+        self.split = split
         self.transform = transform
         self.all_mag = get_all_mag
         self.root = os.path.join(root)
@@ -97,6 +98,9 @@ class MagImageDataset(Dataset):
 
             if self.transform:
                 image = self.transform(image)
+
+        if self.split == "ood":
+            return image
 
         return image, row["label_int"]
 
@@ -150,10 +154,26 @@ class OODDataset(Dataset):
 
 
 if __name__ == "__main__":
-    dataset = MagImageDataset(
-        "/scratch/jakobj/multimag", get_all_mag=False, ood_classes=["UO3AUC", "U3O8MDU"]
+    from torch.utils.data import DataLoader
+    from torchvision import transforms
+
+    transform = transforms.Compose(
+        [
+            transforms.RandomResizedCrop(
+                256,
+                scale=(0.08, 1.0),
+                interpolation=transforms.InterpolationMode.BICUBIC,
+            ),
+            transforms.ToTensor(),
+        ]
     )
 
-    #! this goes out of range... wtf??
-    for i, (img, label) in enumerate(dataset):
-        print(i, img, label)
+    dataset = MagImageDataset(
+        "/scratch/jakobj/multimag",
+        get_all_mag=False,
+        ood_classes=["UO3AUC", "U3O8MDU"],
+        transform=transform,
+    )
+    dataloader = DataLoader(dataset, drop_last=True, batch_size=6)
+
+    print(next(iter(dataloader))[0].shape)

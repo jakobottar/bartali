@@ -142,11 +142,11 @@ def test(model, test_loader, ood_loader, epoch):
 
     mlflow.log_metrics(
         {
-            "val_acc": len(conf_right) / (len(conf_right) + len(conf_wrong)),
-            "val_conf_right": float(conf_right.mean()),
-            "val_conf_wrong": float(conf_wrong.mean()),
-            "val_conf_all": float((conf_right.mean() + conf_wrong.mean()) / 2),
-            "val_auroc_in": auroc_in,
+            "test_acc": len(conf_right) / (len(conf_right) + len(conf_wrong)),
+            "test_conf_right": float(conf_right.mean()),
+            "test_conf_wrong": float(conf_wrong.mean()),
+            "test_conf_all": float((conf_right.mean() + conf_wrong.mean()) / 2),
+            "test_auroc_in": auroc_in,
         },
         step=epoch,
     )
@@ -183,8 +183,8 @@ def test(model, test_loader, ood_loader, epoch):
 
     mlflow.log_metrics(
         {
-            "val_conf_ood": float(conf_ood.mean()),
-            "val_auroc_out": auroc_out,
+            "test_conf_ood": float(conf_ood.mean()),
+            "test_auroc_out": auroc_out,
         },
         step=epoch,
     )
@@ -307,14 +307,29 @@ if __name__ == "__main__":
                 ]
             )
 
+            OOD_CLASSES = ["UO3AUC", "U3O8MDU"]
             train_dataset = utils.MagImageDataset(
-                "/scratch/jakobj/multimag/", train=True, transform=transform
+                "/scratch/jakobj/multimag/",
+                split="train",
+                transform=transform,
+                get_all_mag=False,
+                ood_classes=OOD_CLASSES,
             )
+
             test_dataset = utils.MagImageDataset(
-                "/scratch/jakobj/multimag/", train=False, transform=transform
+                "/scratch/jakobj/multimag/",
+                split="test",
+                transform=transform,
+                get_all_mag=False,
+                ood_classes=OOD_CLASSES,
             )
-            ood_dataset = utils.OODDataset(
-                "/scratch/jakobj/multimag/", transform=transform
+
+            ood_dataset = utils.MagImageDataset(
+                "/scratch/jakobj/multimag/",
+                split="ood",
+                transform=transform,
+                get_all_mag=False,
+                ood_classes=OOD_CLASSES,
             )
 
         train_dataloader = DataLoader(

@@ -5,10 +5,11 @@ import torch
 import torch.distributed as dist
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
+from torch.utils.data.sampler import BatchSampler
 from torchvision import datasets, transforms
 
 from .data import MultiplyBatchSampler
-from .data import MagImageDataset, OODDataset
+from .data import MagImageDataset
 
 
 def setup(rank, world_size, port="1234"):
@@ -90,12 +91,14 @@ def prepare_dataloaders(
                     Clamp(),
                 ]
             )
+
+            OOD_CLASSES = ["UO3AUC", "U3O8MDU"]
             train_dataset = MagImageDataset(
                 configs.dataset_location,
                 split="train",
                 transform=transform,
                 get_all_mag=False,
-                ood_classes=["UO3AUC", "U3O8MDU"],
+                ood_classes=OOD_CLASSES,
             )
 
             test_dataset = MagImageDataset(
@@ -103,13 +106,15 @@ def prepare_dataloaders(
                 split="test",
                 transform=transform,
                 get_all_mag=configs.multi_mag_majority_vote,
-                ood_classes=["UO3AUC", "U3O8MDU"],
+                ood_classes=OOD_CLASSES,
             )
 
-            ood_dataset = OODDataset(
+            ood_dataset = MagImageDataset(
                 configs.dataset_location,
+                split="ood",
                 transform=transform,
                 get_all_mag=configs.multi_mag_majority_vote,
+                ood_classes=OOD_CLASSES,
             )
 
         case _:
@@ -149,9 +154,7 @@ def prepare_dataloaders(
             ood_dataset,
             pin_memory=True,
             num_workers=configs.workers,
-            batch_sampler=batch_sampler(
-                ood_sampler, configs.batch_size, drop_last=True
-            ),
+            batch_sampler=BatchSampler(ood_sampler, configs.batch_size, drop_last=True),
         )
 
         return train_dataloader, test_dataloader, ood_dataloader
