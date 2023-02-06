@@ -5,7 +5,7 @@ data utils
 import os
 import random
 import pandas as pd
-from torch.utils.data.sampler import BatchSampler
+from torch.utils.data.sampler import BatchSampler, RandomSampler
 from torch.utils.data import Dataset
 
 from PIL import Image
@@ -174,6 +174,17 @@ if __name__ == "__main__":
         ood_classes=["UO3AUC", "U3O8MDU"],
         transform=transform,
     )
-    dataloader = DataLoader(dataset, drop_last=True, batch_size=6)
 
-    print(next(iter(dataloader))[0].shape)
+    sampler = RandomSampler(dataset)
+
+    dataloader = DataLoader(
+        dataset,
+        pin_memory=True,
+        num_workers=2,
+        batch_sampler=BatchSampler(sampler, batch_size=64, drop_last=True),
+    )
+
+    count = 0
+    for img, label in iter(dataloader):
+        count += len(label)
+        print(f"batch size: {len(label)}, total seen: {count}")

@@ -135,7 +135,7 @@ def prepare_dataloaders(
         train_dataset,
         pin_memory=True,
         num_workers=configs.workers,
-        batch_sampler=batch_sampler(train_sampler, configs.batch_size, drop_last=True),
+        batch_sampler=batch_sampler(train_sampler, configs.batch_size, drop_last=False),
     )
 
     test_sampler = DistributedSampler(test_dataset)
@@ -144,7 +144,7 @@ def prepare_dataloaders(
         test_dataset,
         pin_memory=True,
         num_workers=configs.workers,
-        batch_sampler=batch_sampler(test_sampler, configs.batch_size, drop_last=True),
+        batch_sampler=batch_sampler(test_sampler, configs.batch_size, drop_last=False),
     )
 
     if include_ood_dataloader:
@@ -154,7 +154,9 @@ def prepare_dataloaders(
             ood_dataset,
             pin_memory=True,
             num_workers=configs.workers,
-            batch_sampler=BatchSampler(ood_sampler, configs.batch_size, drop_last=True),
+            batch_sampler=BatchSampler(
+                ood_sampler, configs.batch_size, drop_last=False
+            ),
         )
 
         return train_dataloader, test_dataloader, ood_dataloader
