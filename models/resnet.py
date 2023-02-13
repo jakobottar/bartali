@@ -1,11 +1,11 @@
 import shutil
 import time
-from tqdm import tqdm
 
 import torch
-from torch import nn
 import torch.nn.functional as F
+from torch import nn
 from torchvision import models
+from tqdm import tqdm
 
 from .trainernet import Trainer
 

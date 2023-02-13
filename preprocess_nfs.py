@@ -1,6 +1,7 @@
-import numpy as np
 import glob
 import random
+
+import numpy as np
 
 ROUTES = [
     "U3O8ADU",

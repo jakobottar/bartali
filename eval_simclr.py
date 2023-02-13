@@ -1,20 +1,19 @@
 """
 evaluator head for simclr model
 """
-import os
-import shutil
-import time
-import random
 import argparse
+import os
+import random
+import shutil
 import socket
+import time
 
-import namegenerator
 import mlflow
-
+import namegenerator
 import torch
 import torch.backends.cudnn as cudnn
-import torch.multiprocessing as mp
 import torch.distributed as dist
+import torch.multiprocessing as mp
 
 import models
 import utils
@@ -70,7 +69,7 @@ def worker(rank, world_size, configs):
 
         data["train_stats"] = eval_simclr.train_epoch(train_dataloader, verbose=False)
         data["test_stats"] = eval_simclr.test_epoch(
-            test_dataloader, ood_dataloader, verbose=False
+            train_dataloader, test_dataloader, ood_dataloader, verbose=False
         )
 
         dist.all_gather_object(outputs, data)
@@ -129,4 +128,3 @@ if __name__ == "__main__":
     world_size = len(configs.gpus)
 
     mp.spawn(worker, args=(world_size, configs), nprocs=world_size, join=True)
-4

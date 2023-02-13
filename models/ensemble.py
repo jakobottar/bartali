@@ -4,8 +4,8 @@ Network Definitions
 """
 
 import torch
-from torch import Tensor, nn
 import torch.nn.functional as F
+from torch import Tensor, nn
 
 # from torch.autograd import Function
 from torchvision import models

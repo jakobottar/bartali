@@ -1,11 +1,11 @@
 """
 replacement for ResNet class, with built-in trainers and testers
 """
-from typing import Tuple, OrderedDict
 import re
+from typing import OrderedDict, Tuple
 
 import torch
-from torch import nn, Tensor
+from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from utils import LARS

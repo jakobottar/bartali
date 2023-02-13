@@ -3,20 +3,20 @@
 Baseline model, uses max softmax, as in Hendrycks and Gimpel 2018
 """
 
+import argparse
 import os
 import shutil
-import argparse
-import namegenerator
+
 import matplotlib.pyplot as plt
 import mlflow
-from tqdm import tqdm
+import namegenerator
 import sklearn.metrics as sk
-
 import torch
+import torch.nn.functional as F
 from torch import nn
 from torch.utils.data import DataLoader
-import torch.nn.functional as F
-from torchvision import models, datasets, transforms
+from torchvision import datasets, models, transforms
+from tqdm import tqdm
 
 import utils
 

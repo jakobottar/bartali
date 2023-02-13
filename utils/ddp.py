@@ -8,8 +8,7 @@ from torch.utils.data.distributed import DistributedSampler
 from torch.utils.data.sampler import BatchSampler
 from torchvision import datasets, transforms
 
-from .data import MultiplyBatchSampler
-from .data import MagImageDataset
+from .data import MagImageDataset, MultiplyBatchSampler
 
 
 def setup(rank, world_size, port="1234"):

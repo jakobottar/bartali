@@ -1,20 +1,19 @@
 """
 baseline resnet model
 """
-import os
-import shutil
-import time
-import random
 import argparse
+import os
+import random
+import shutil
 import socket
+import time
 
-import namegenerator
 import mlflow
-
+import namegenerator
 import torch
 import torch.backends.cudnn as cudnn
-import torch.multiprocessing as mp
 import torch.distributed as dist
+import torch.multiprocessing as mp
 
 import models
 import utils

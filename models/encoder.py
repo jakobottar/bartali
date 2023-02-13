@@ -1,11 +1,11 @@
-import torch
-from torch import nn
-import models
 from collections import OrderedDict
 
+import torch
 import torch.nn as nn
 import torchvision.models as models
-import torch
+from torch import nn
+
+import models
 
 
 class Flatten(nn.Module):

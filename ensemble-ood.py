@@ -3,23 +3,23 @@
 Pure Ensemble Network, "Forest of NNs"
 """
 
+import argparse
 import os
 import shutil
-import argparse
-import namegenerator
+
 import matplotlib.pyplot as plt
 import mlflow
-from tqdm import tqdm
+import namegenerator
 import sklearn.metrics as sk
-
 import torch
+import torch.nn.functional as F
 from torch import nn
 from torch.utils.data import DataLoader
-import torch.nn.functional as F
-from torchvision import transforms, datasets
+from torchvision import datasets, transforms
+from tqdm import tqdm
 
-import utils
 import models
+import utils
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
