@@ -1,11 +1,11 @@
 arch: resnet50
 name: random
 dataset: nfs
-dataset_location: /scratch/jakobj/multimag
+dataset_location: /nvmescratch/jakobj/multimag
 batch_size: 512
 workers: 2
 lr_schedule: cosine-anneal
-epochs: 1000
+epochs: 5
 lr: 4.
 weight_decay: 1.0e-6
 tau: 1.

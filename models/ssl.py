@@ -1,22 +1,22 @@
-import shutil
-from typing import OrderedDict
-import time
 import re
-from tqdm import tqdm
+import shutil
+import time
+from typing import OrderedDict
 
-import torch
-from torch import nn
-import torch.nn.functional as F
-from torch.utils.data import DataLoader
-from torch.utils.data.distributed import DistributedSampler
 import numpy as np
 import scipy
 import sklearn.metrics as sk
+import torch
+import torch.nn.functional as F
+from torch import Tensor, nn
+from torch.utils.data import DataLoader
+from torch.utils.data.distributed import DistributedSampler
+from tqdm import tqdm
 
 import utils
 
-from .trainernet import Trainer
 from .encoder import EncodeProject
+from .trainernet import Trainer
 
 
 class SimCLR(Trainer):
@@ -156,6 +156,8 @@ class EvalSimCLR(Trainer):
         self.set_up_optimizers()
         self.set_up_loss()
 
+        self.mean_train_var = utils.RunningAverage()
+
     def to(self, device):
         super().to(device)
         self.encoder.to(device)
@@ -222,20 +224,22 @@ class EvalSimCLR(Trainer):
                 model_dict = model_state_dict
         self.encoder.load_state_dict(model_dict)
 
-    def ood_metric(self, values):
-        values = values.to(self.device)
-        encodings = self.encode_step(values).cpu().numpy()
-        return np.var(encodings)
+    def ood_metric(self, values: Tensor, train: bool = False):
+        if train:
+            self.mean_train_var.average_in(value=torch.var(values))
+            return
+        else:
+            var = torch.var(values)
+            # return self.mean_train_var.mean - var
+            return var.item()
 
-    def train_epoch(self, dataloader, verbose=True) -> dict:
+    def train_epoch(self, dataloader) -> dict:
         self.train()
 
         if isinstance(dataloader.sampler, DistributedSampler):
             dataloader.sampler.set_epoch(self.epoch)
 
         loader = iter(dataloader)
-        if verbose:
-            loader = tqdm(loader, ncols=shutil.get_terminal_size().columns)
 
         train_loss, correct = 0.0, 0.0
         data_time, iter_time = 0.0, 0.0
@@ -253,8 +257,6 @@ class EvalSimCLR(Trainer):
             # get accuracy
             pred = torch.argmax(F.softmax(pred, dim=1), dim=1)
             correct += pred.eq(target.view_as(pred)).sum().item()
-            if verbose:
-                loader.set_description(f"train loss: {loss.item():.4f}")
 
         self.epoch += 1
         if self.scheduler:
@@ -266,102 +268,77 @@ class EvalSimCLR(Trainer):
             "iter_time": iter_time / (len(dataloader) / len(self.configs.gpus)),
         }
 
-    def test_epoch(self, test_loader, ood_loader, verbose=False) -> list:
+    def test_epoch(self, train_loader, test_loader, ood_loader) -> list:
         self.eval()
 
         iter_test_loader = iter(test_loader)
         iter_ood_loader = iter(ood_loader)
 
-        test_loss, correct = 0.0, 0.0
-        conf_right, conf_wrong, conf_ood = [], [], []
+        test_loss, correct = 0, 0
+        var_right, var_wrong, var_ood = [], [], []
         with torch.no_grad():
-            for _, (values, target) in enumerate(iter_test_loader):
-                if self.configs.dataset == "nfs":
+            if self.configs.dataset == "nfs":
+                # process test dataset
+                for _, (values, target) in enumerate(iter_test_loader):
                     preds = torch.zeros(
                         (len(values), target.shape[0]), device=self.device
-                    )
+                    )  # space for predicted values
+                    encodings = torch.zeros(
+                        (len(values), target.shape[0], 2048), device=self.device
+                    )  # space for encodings
                     for i, value in enumerate(values):
                         value, target = value.to(self.device), target.to(self.device)
 
                         # do test step
                         pred, loss = self.test_step(value, target)
+                        encodings[i] = self.encode_step(value)
 
                         # get loss
                         test_loss += loss.item()
-                        # get accuracy
+                        # get prediction
                         preds[i] = torch.argmax(F.softmax(pred, dim=1), dim=1)
 
+                    encodings = encodings.transpose(0, 1)
                     preds = torch.mode(preds, dim=0).values
-                    r = preds.eq(target.view_as(preds))  # idx of correct predslen
-                    # TODO: fix this!
+                    r = preds.eq(target.view_as(preds))  # idx of correct preds
                     for i, is_correct in enumerate(r):
-                        chunk = torch.zeros(
-                            size=(
-                                len(values),
-                                values[0].shape[1],
-                                values[0].shape[2],
-                                values[0].shape[3],
-                            )
-                        )
-                        for j, value in enumerate(values):
-                            chunk[j] = value[i]
-
                         if is_correct:
-                            conf_right.append(self.ood_metric(chunk))
+                            var_right.append(self.ood_metric(encodings[i]))
                         else:
-                            conf_wrong.append(self.ood_metric(chunk))
+                            var_wrong.append(self.ood_metric(encodings[i]))
 
                     correct += r.sum().item()
-                    test_loss /= len(values)
 
-                else:
-                    raise (NotImplementedError)
+                # process ood dataset
+                for _, values in enumerate(iter_ood_loader):
+                    encodings = torch.zeros(
+                        (len(values), values[0].shape[0], 2048), device=self.device
+                    )
+                    for i, value in enumerate(values):
+                        value = value.to(self.device)
 
-            for _, values in enumerate(iter_ood_loader):
-                if self.configs.dataset == "nfs":
-                    for i, _ in enumerate(values[0]):
-                        chunk = torch.zeros(
-                            size=(
-                                len(values),
-                                values[0].shape[1],
-                                values[0].shape[2],
-                                values[0].shape[3],
-                            )
-                        )
-                        for j, value in enumerate(values):
-                            chunk[j] = value[i]
+                        # do test step
+                        encodings[i] = self.encode_step(value)
 
-                        conf_ood.append(self.ood_metric(chunk))
-                else:
-                    raise (NotImplementedError)
-                    # values, target = values.to(self.device), target.to(self.device)
-
-                    # # do test step
-                    # pred, loss = self.test_step(values, target)
-
-                    # # get loss
-                    # test_loss += loss.item()
-                    # # get accuracy
-                    # pred = torch.argmax(F.softmax(pred, dim=1), dim=1)
-                    # r = preds.eq(target.view_as(preds))  # idx of correct preds
-                    # conf_right.append(self.ood_metric(values[r]))
-                    # conf_wrong.append(self.ood_metric(values[~r]))
-                    # correct += r.sum().item()
+                    encodings = encodings.transpose(0, 1)
+                    var_ood = [self.ood_metric(chunk) for chunk in encodings]
+            else:
+                raise NotImplementedError
 
         in_labels = np.concatenate(
             [
-                np.ones((len(conf_right),), dtype=int),
-                np.zeros((len(conf_wrong),), dtype=int),
+                np.ones((len(var_right),), dtype=int),
+                np.zeros((len(var_wrong),), dtype=int),
             ]
         )
         out_labels = np.concatenate(
             [
-                np.ones((len(conf_right),), dtype=int),
-                np.zeros((len(conf_ood),), dtype=int),
+                np.ones((len(var_right),), dtype=int),
+                np.zeros((len(var_ood),), dtype=int),
             ]
         )
-        in_values = np.concatenate([conf_right, conf_wrong])
-        out_values = np.concatenate([conf_right, conf_ood])
+        in_values = np.concatenate([var_right, var_wrong])
+        out_values = np.concatenate([var_right, var_ood])
 
         auroc_in = sk.roc_auc_score(in_labels, in_values)
         auroc_out = sk.roc_auc_score(out_labels, out_values)
@@ -369,10 +346,10 @@ class EvalSimCLR(Trainer):
         return {
             "val_loss": test_loss / (len(test_loader) / len(self.configs.gpus)),
             "val_acc": correct / (len(test_loader.dataset) / len(self.configs.gpus)),
-            "val_conf_right": np.mean(conf_right),
-            "val_conf_wrong": np.mean(conf_wrong),
-            "val_conf_ood": np.mean(conf_ood),
-            "val_conf_all": (np.mean(conf_right) + np.mean(conf_wrong)) / 2,
+            "val_var_right": np.mean(var_right),
+            "val_var_wrong": np.mean(var_wrong),
+            "val_var_ood": np.mean(var_ood),
+            "val_var_all": (np.mean(var_right) + np.mean(var_wrong)) / 2,
             "val_auroc_in": auroc_in,
             "val_auroc_out": auroc_out,
         }

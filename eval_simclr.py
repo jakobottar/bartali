@@ -67,9 +67,9 @@ def worker(rank, world_size, configs):
             print(f"epoch {epoch} of {configs.epochs} ", end="")
             start_time = time.time()
 
-        data["train_stats"] = eval_simclr.train_epoch(train_dataloader, verbose=False)
+        data["train_stats"] = eval_simclr.train_epoch(train_dataloader)
         data["test_stats"] = eval_simclr.test_epoch(
-            train_dataloader, test_dataloader, ood_dataloader, verbose=False
+            train_dataloader, test_dataloader, ood_dataloader
         )
 
         dist.all_gather_object(outputs, data)

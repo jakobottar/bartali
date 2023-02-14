@@ -1,7 +1,7 @@
-from dataclasses import dataclass, asdict
-import yaml
+from dataclasses import asdict, dataclass
 
 import torch
+import yaml
 from torch import Tensor
 
 
@@ -95,3 +95,23 @@ def entropy(logits, base="two"):
         return -torch.nansum(logits * torch.log(logits), dim=1)
     else:
         raise NotImplementedError(f"No log found for base {base}")
+
+
+class RunningAverage:
+    def __init__(self) -> None:
+        self.iter = 0
+        self.mean = None
+
+    def average_in(self, value):
+        if value.shape != self.mean.shape:
+            raise ValueError(
+                "Incompatable sizes. Expected size {self.means.shape} but got {value.shape}."
+            )
+
+        ## first iter:
+        if self.iter == 0:
+            self.mean = value
+        else:
+            self.mean = self.mean + (value - self.mean) / self.iter
+
+        self.iter += 1

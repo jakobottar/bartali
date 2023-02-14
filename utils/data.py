@@ -169,10 +169,11 @@ if __name__ == "__main__":
     )
 
     dataset = MagImageDataset(
-        "/scratch/jakobj/multimag",
-        get_all_mag=False,
-        ood_classes=["UO3AUC", "U3O8MDU"],
+        "/nvmescratch/jakobj/multimag",
+        split="ood",
         transform=transform,
+        get_all_mag=True,
+        ood_classes=["UO3AUC", "U3O8MDU"],
     )
 
     sampler = RandomSampler(dataset)
@@ -181,10 +182,7 @@ if __name__ == "__main__":
         dataset,
         pin_memory=True,
         num_workers=2,
-        batch_sampler=BatchSampler(sampler, batch_size=64, drop_last=True),
+        batch_sampler=BatchSampler(sampler, batch_size=64, drop_last=False),
     )
 
-    count = 0
-    for img, label in iter(dataloader):
-        count += len(label)
-        print(f"batch size: {len(label)}, total seen: {count}")
+    print(len(dataset))
