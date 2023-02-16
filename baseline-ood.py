@@ -270,19 +270,19 @@ if __name__ == "__main__":
             BATCH_SIZE = 256
 
             train_dataset = datasets.CIFAR10(
-                "/scratch/jakobj/cifar",
+                "/nvmescratch/jakobj/cifar",
                 train=True,
                 download=True,
                 transform=transforms.ToTensor(),
             )
             test_dataset = datasets.CIFAR10(
-                "/scratch/jakobj/cifar",
+                "/nvmescratch/jakobj/cifar",
                 train=False,
                 download=True,
                 transform=transforms.ToTensor(),
             )
             ood_dataset = datasets.SVHN(
-                "/scratch/jakobj/cifar",
+                "/nvmescratch/jakobj/cifar",
                 download=True,
                 transform=transforms.ToTensor(),
             )
@@ -304,7 +304,7 @@ if __name__ == "__main__":
             )
             OOD_CLASSES = ["UO3AUC", "U3O8MDU"]
             train_dataset = utils.MagImageDataset(
-                "/scratch/jakobj/multimag/",
+                "/nvmescratch/jakobj/multimag/",
                 split="train",
                 transform=transform,
                 get_all_mag=False,
@@ -312,7 +312,7 @@ if __name__ == "__main__":
             )
 
             test_dataset = utils.MagImageDataset(
-                "/scratch/jakobj/multimag/",
+                "/nvmescratch/jakobj/multimag/",
                 split="test",
                 transform=transform,
                 get_all_mag=False,
@@ -320,7 +320,7 @@ if __name__ == "__main__":
             )
 
             ood_dataset = utils.MagImageDataset(
-                "/scratch/jakobj/multimag/",
+                "/nvmescratch/jakobj/multimag/",
                 split="ood",
                 transform=transform,
                 get_all_mag=False,
