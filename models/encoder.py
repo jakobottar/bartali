@@ -1,11 +1,11 @@
-import torch
-from torch import nn
-import models
 from collections import OrderedDict
 
-import torch.nn as nn
-import torchvision.models as models
 import torch
+import torch.nn as nn
+import torchvision
+from torch import nn
+
+import models
 
 
 class Flatten(nn.Module):
@@ -17,7 +17,7 @@ class Flatten(nn.Module):
         return torch.flatten(feat, start_dim=self.dim)
 
 
-class ResNetEncoder(models.resnet.ResNet):
+class ResNetEncoder(torchvision.models.resnet.ResNet):
     """Wrapper for TorchVison ResNet Model
     This was needed to remove the final FC Layer from the ResNet Model"""
 
@@ -51,12 +51,16 @@ class ResNetEncoder(models.resnet.ResNet):
 
 class ResNet18(ResNetEncoder):
     def __init__(self, cifar_head=True):
-        super().__init__(models.resnet.BasicBlock, [2, 2, 2, 2], cifar_head=cifar_head)
+        super().__init__(
+            torchvision.models.resnet.BasicBlock, [2, 2, 2, 2], cifar_head=cifar_head
+        )
 
 
 class ResNet50(ResNetEncoder):
     def __init__(self, cifar_head=True):
-        super().__init__(models.resnet.Bottleneck, [3, 4, 6, 3], cifar_head=cifar_head)
+        super().__init__(
+            torchvision.models.resnet.Bottleneck, [3, 4, 6, 3], cifar_head=cifar_head
+        )
 
 
 class BatchNorm1dNoBias(nn.BatchNorm1d):

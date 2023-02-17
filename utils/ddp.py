@@ -5,10 +5,10 @@ import torch
 import torch.distributed as dist
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
+from torch.utils.data.sampler import BatchSampler
 from torchvision import datasets, transforms
 
-from .data import MultiplyBatchSampler
-from .data import MagImageDataset
+from .data import MagImageDataset, MultiplyBatchSampler
 
 
 def setup(rank, world_size, port="1234"):
@@ -37,7 +37,9 @@ class Clamp(object):
         return torch.clamp(x, 0, 1)
 
 
-def prepare_dataloaders(rank: int, world_size: int, configs):
+def prepare_dataloaders(
+    rank: int, world_size: int, configs, include_ood_dataloader: bool = False
+):
 
     match configs.dataset:
         case "cifar":
@@ -68,6 +70,12 @@ def prepare_dataloaders(rank: int, world_size: int, configs):
                 transform=transform,
             )
 
+            ood_dataset = datasets.SVHN(
+                configs.dataset_location,
+                download=False,
+                transform=transform,
+            )
+
         case "nfs":
             transform = transforms.Compose(
                 [
@@ -82,18 +90,30 @@ def prepare_dataloaders(rank: int, world_size: int, configs):
                     Clamp(),
                 ]
             )
+
+            OOD_CLASSES = ["UO3AUC", "U3O8MDU"]
             train_dataset = MagImageDataset(
                 configs.dataset_location,
-                train=True,
+                split="train",
                 transform=transform,
                 get_all_mag=False,
+                ood_classes=OOD_CLASSES,
             )
 
             test_dataset = MagImageDataset(
                 configs.dataset_location,
-                train=False,
+                split="test",
                 transform=transform,
                 get_all_mag=configs.multi_mag_majority_vote,
+                ood_classes=OOD_CLASSES,
+            )
+
+            ood_dataset = MagImageDataset(
+                configs.dataset_location,
+                split="ood",
+                transform=transform,
+                get_all_mag=configs.multi_mag_majority_vote,
+                ood_classes=OOD_CLASSES,
             )
 
         case _:
@@ -114,7 +134,7 @@ def prepare_dataloaders(rank: int, world_size: int, configs):
         train_dataset,
         pin_memory=True,
         num_workers=configs.workers,
-        batch_sampler=batch_sampler(train_sampler, configs.batch_size, drop_last=True),
+        batch_sampler=batch_sampler(train_sampler, configs.batch_size, drop_last=False),
     )
 
     test_sampler = DistributedSampler(test_dataset)
@@ -123,7 +143,21 @@ def prepare_dataloaders(rank: int, world_size: int, configs):
         test_dataset,
         pin_memory=True,
         num_workers=configs.workers,
-        batch_sampler=batch_sampler(test_sampler, configs.batch_size, drop_last=True),
+        batch_sampler=batch_sampler(test_sampler, configs.batch_size, drop_last=False),
     )
+
+    if include_ood_dataloader:
+        ood_sampler = DistributedSampler(ood_dataset)
+
+        ood_dataloader = DataLoader(
+            ood_dataset,
+            pin_memory=True,
+            num_workers=configs.workers,
+            batch_sampler=BatchSampler(
+                ood_sampler, configs.batch_size, drop_last=False
+            ),
+        )
+
+        return train_dataloader, test_dataloader, ood_dataloader
 
     return train_dataloader, test_dataloader

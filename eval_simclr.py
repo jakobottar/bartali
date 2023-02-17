@@ -1,20 +1,19 @@
 """
 evaluator head for simclr model
 """
-import os
-import shutil
-import time
-import random
 import argparse
+import os
+import random
+import shutil
 import socket
+import time
 
-import namegenerator
 import mlflow
-
+import namegenerator
 import torch
 import torch.backends.cudnn as cudnn
-import torch.multiprocessing as mp
 import torch.distributed as dist
+import torch.multiprocessing as mp
 
 import models
 import utils
@@ -34,8 +33,8 @@ def worker(rank, world_size, configs):
     torch.cuda.set_device(configs.gpus[rank])
 
     # prepare the dataloader
-    train_dataloader, test_dataloader = utils.prepare_dataloaders(
-        rank, world_size, configs
+    train_dataloader, test_dataloader, ood_dataloader = utils.prepare_dataloaders(
+        rank, world_size, configs, include_ood_dataloader=True
     )
 
     # set up model
@@ -51,7 +50,7 @@ def worker(rank, world_size, configs):
 
     if rank == 0:
         mlflow.set_tracking_uri("http://tularosa.sci.utah.edu:5000")
-        mlflow.set_experiment("bartali2")
+        mlflow.set_experiment("bartali-artifacts")
         mlflow.start_run(run_name=configs.name)
         mlflow.log_params(configs.as_dict())
         best_metric = -9999
@@ -68,8 +67,8 @@ def worker(rank, world_size, configs):
             print(f"epoch {epoch} of {configs.epochs} ", end="")
             start_time = time.time()
 
-        data["train_stats"] = eval_simclr.train_epoch(train_dataloader, verbose=False)
-        data["test_stats"] = eval_simclr.test_epoch(test_dataloader, verbose=False)
+        data["train_stats"] = eval_simclr.train_epoch(train_dataloader)
+        data["test_stats"] = eval_simclr.test_epoch(test_dataloader, ood_dataloader)
 
         dist.all_gather_object(outputs, data)
 
@@ -79,7 +78,7 @@ def worker(rank, world_size, configs):
             mlflow.log_metric(
                 "learning_rate", eval_simclr.scheduler.get_last_lr()[0], step=epoch
             )
-            if metrics["test_loss"] > best_metric:
+            if metrics["val_loss"] > best_metric:
                 torch.save(eval_simclr.get_ckpt(), f"{configs.root}/best.pth")
             print(f"{time.time() - start_time:.2f} sec")
 
@@ -122,6 +121,7 @@ if __name__ == "__main__":
         pass
     configs.root = f"{configs.root}/{configs.name}"
     shutil.copy(args.config, os.path.join(configs.root, "config.yaml"))
+    shutil.copy(configs.chkpt_file, os.path.join(configs.root, "frozen_chkpt.pth"))
 
     world_size = len(configs.gpus)
 

@@ -1,20 +1,19 @@
 """
 baseline resnet model
 """
-import os
-import shutil
-import time
-import random
 import argparse
+import os
+import random
+import shutil
 import socket
+import time
 
-import namegenerator
 import mlflow
-
+import namegenerator
 import torch
 import torch.backends.cudnn as cudnn
-import torch.multiprocessing as mp
 import torch.distributed as dist
+import torch.multiprocessing as mp
 
 import models
 import utils
@@ -45,7 +44,7 @@ def worker(rank, world_size, configs):
 
     if rank == 0:
         mlflow.set_tracking_uri("http://tularosa.sci.utah.edu:5000")
-        mlflow.set_experiment("bartali2")
+        mlflow.set_experiment("bartali-artifacts")
         mlflow.start_run(run_name=configs.name)
         mlflow.log_params(configs.as_dict())
         best_metric = -9999

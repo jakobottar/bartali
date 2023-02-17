@@ -1,6 +1,7 @@
-import numpy as np
 import glob
 import random
+
+import numpy as np
 
 ROUTES = [
     "U3O8ADU",
@@ -18,9 +19,7 @@ ROUTES = [
 ]
 
 
-def create_trainval_file(
-    rdir, fold_num, mags, trainval_file_dir, trainval_file_corename
-):
+def create_trainval_file(rdir, fold_num, mags, trainval_file_dir):
     """
     Generate train/val text file of a dataset with a specified kth fold
     """
@@ -34,9 +33,9 @@ def create_trainval_file(
         total_files = {}
         ## Get filenames across specified magnifications ##
         for m in mags:
-            curr_key = "%s_%s" % (r, m)
+            curr_key = f"{r}_{m}"
 
-            curr_dir = "%s/%s/%s" % (rdir, r, m)
+            curr_dir = f"{rdir}/{r}/{m}"
             curr_files = glob.glob(curr_dir + "/*")
             curr_files.sort()
             total_files[curr_key] = curr_files
@@ -45,10 +44,10 @@ def create_trainval_file(
 
         curr_routes = []
         for i in range(min_files):
-            curr_val = total_files["%s_%s" % (r, mags[0])][i]
+            curr_val = total_files[f"{r}_{mags[0]}"][i]
             for m in mags[1:]:
-                curr_val += " %s" % total_files["%s_%s" % (r, m)][i]
-            curr_val += " %s\n" % r
+                curr_val += f",{total_files[f'{r}_{m}'][i]}"
+            curr_val += f",{r}\n"
             curr_routes.append(curr_val)
 
         num_per_img = 4
@@ -72,25 +71,24 @@ def create_trainval_file(
 
     write_to_files(
         train_files,
-        "%s/train_%s_fold%d.txt"
-        % (trainval_file_dir, trainval_file_corename, fold_num),
+        f"{trainval_file_dir}/train_{fold_num}.csv",
+        ["10000x", "25000x", "50000x", "100000x", "label"],
     )
     write_to_files(
         val_files,
-        "%s/val_%s_fold%d.txt" % (trainval_file_dir, trainval_file_corename, fold_num),
+        f"{trainval_file_dir}/val_{fold_num}.csv",
+        ["10000x", "25000x", "50000x", "100000x", "label"],
     )
 
 
-def write_to_files(files, filename):
+def write_to_files(files, filename, column_names):
     """
     Parse to text file
     """
-
-    f = open(filename, "w")
-    for l in files:
-        f.write(l)
-
-    f.close()
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write(",".join(column_names) + "\n")
+        for l in files:
+            f.write(l)
 
 
 if __name__ == "__main__":
@@ -99,5 +97,4 @@ if __name__ == "__main__":
         0,
         ["10000x", "25000x", "50000x", "100000x"],
         ".",
-        "data",
     )
