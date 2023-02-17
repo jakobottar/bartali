@@ -268,7 +268,7 @@ class EvalSimCLR(Trainer):
             "iter_time": iter_time / (len(dataloader) / len(self.configs.gpus)),
         }
 
-    def test_epoch(self, train_loader, test_loader, ood_loader) -> list:
+    def test_epoch(self, test_loader, ood_loader) -> list:
         self.eval()
 
         iter_test_loader = iter(test_loader)
