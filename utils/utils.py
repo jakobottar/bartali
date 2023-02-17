@@ -10,6 +10,7 @@ class ConfigStruct:
     arch: str = "resnet18"  # resnet18 or resnet50, backbone model architecture
     name: str = "random"  # run name
     chkpt_file: str = "./model.pth"  # checkpoint to resume from
+    mode: str = "self"  # model mode, self or semi supervised
     dataset: str = "cifar"  # cifar, dataset
     dataset_location: str = "./data/"  # dataset filepath
 
