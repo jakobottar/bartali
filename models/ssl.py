@@ -118,6 +118,298 @@ class SimCLR(Trainer):
         return {"test_loss": test_loss / (len(dataloader) / len(self.configs.gpus))}
 
 
+class SemiSupervisedSimCLR(Trainer):
+    def __init__(self, configs) -> None:
+        super().__init__(configs)
+
+        # Load a trained SIMCLR model
+        self.encoder = EncodeProject(
+            backbone=self.configs.arch, cifar_head=(self.configs.dataset == "cifar")
+        )
+        self.encoder = self._load_ckpt(
+            self.encoder, torch.load(self.configs.chkpt_file)
+        )
+        self.encoder.to(self.device)
+
+        # push torch.ones through the model to get input size
+        match self.configs.dataset:
+            case "cifar":
+                hdim = self.encoder(
+                    torch.ones(10, 3, 32, 32).to(self.device), out="h"
+                ).shape[1]
+                n_classes = 10
+            case "nfs":
+                hdim = self.encoder(
+                    torch.ones(10, 3, 256, 256).to(self.device), out="h"
+                ).shape[1]
+                n_classes = 16
+            case _:
+                raise NotImplementedError(
+                    f"Cound not load dataset {self.configs.dataset}."
+                )
+
+        # build a linear layer to choose classes
+        model = nn.Linear(hdim, n_classes).to(self.device)
+        model.weight.data.zero_()
+        model.bias.data.zero_()
+        self.model = model
+
+        self.encoder_optimizer = None
+        self.tuner_optimizer = None
+
+        self.set_up_optimizers()
+        self.set_up_loss()
+
+    def eval(self) -> None:
+        self.encoder.eval()
+        self.model.eval()
+
+    def train(self) -> None:
+        self.encoder.train()
+        self.model.train()
+
+    # TODO: fix
+    def set_up_optimizers(self) -> None:
+        def exclude_tuner(name):
+            if "bn" in name:
+                return True
+
+        def exclude_encoder(name):
+            if "bn" in name:
+                return True
+            if "bias" in name:
+                return True
+
+        parameters_tuner = [
+            {
+                "params": [
+                    p
+                    for name, p in self.model.named_parameters()
+                    if not exclude_tuner(name)
+                ],
+                "weight_decay": self.configs.weight_decay,
+                "layer_adaptation": True,
+            },
+            {
+                "params": [
+                    p
+                    for name, p in self.model.named_parameters()
+                    if exclude_tuner(name)
+                ],
+                "weight_decay": 0.0,
+                "layer_adaptation": False,
+            },
+        ]
+
+        parameters_encoder = [
+            {
+                "params": [
+                    p
+                    for name, p in self.encoder.named_parameters()
+                    if not exclude_encoder(name)
+                ],
+                "weight_decay": self.configs.weight_decay,
+                "layer_adaptation": True,
+            },
+            {
+                "params": [
+                    p
+                    for name, p in self.encoder.named_parameters()
+                    if exclude_encoder(name)
+                ],
+                "weight_decay": 0.0,
+                "layer_adaptation": False,
+            },
+        ]
+
+        self.tuner_optimizer = torch.optim.Adam(
+            parameters_tuner,
+            lr=self.configs.lr,
+            weight_decay=self.configs.weight_decay,
+        )
+
+        self.encoder_optimizer = torch.optim.SGD(
+            parameters_encoder,
+            lr=self.configs.lr,
+            momentum=0.9,
+        )
+        lars_optimizer = utils.LARS(self.encoder_optimizer)
+
+        match self.configs.lr_schedule:
+            case "exponential":
+                self.scheduler = torch.optim.lr_scheduler.ExponentialLR(
+                    self.encoder_optimizer, gamma=self.configs.lr_gamma
+                )
+                self.scheduler = torch.optim.lr_scheduler.ExponentialLR(
+                    self.tuner_optimizer, gamma=self.configs.lr_gamma
+                )
+            case _:
+                raise NotImplementedError(
+                    f"Could not find scheduler {self.configs.lr_schedule}."
+                )
+
+        self.encoder_optimizer = lars_optimizer
+
+    def set_up_loss(self) -> None:
+        self.loss = nn.CrossEntropyLoss()
+
+    def to(self, device):
+        super().to(device)
+        self.encoder.to(device)
+        return self
+
+    def to_ddp(self, rank):
+        super().to_ddp(rank)
+        self.encoder.to(self.device)
+        return self
+
+    def ood_metric(self, values: Tensor, train: bool = False):
+        var = torch.var(values)
+        # return self.mean_train_var.mean - var
+        return var.item()
+
+    def encode_step(self, value):
+        return self.encoder(value, out="h")
+
+    def step(self, value, target):
+        if self.configs.dataset == "nfs":
+            value = self.encode_step(value)
+        return super().step(value, target)
+
+    def train_step(self, value, target):
+
+        pred, loss = self.step(value, target)
+
+        self.tuner_optimizer.zero_grad()
+        self.encoder_optimizer.zero_grad()
+        loss.backward()
+        self.tuner_optimizer.step()
+        self.encoder_optimizer.step()
+
+        return pred, loss
+
+    def train_epoch(self, dataloader) -> dict:
+        self.train()
+
+        if isinstance(dataloader.sampler, DistributedSampler):
+            dataloader.sampler.set_epoch(self.epoch)
+
+        loader = iter(dataloader)
+
+        train_loss, correct = 0.0, 0.0
+        data_time, iter_time = 0.0, 0.0
+        start_time = time.perf_counter()
+        for _, (value, target) in enumerate(loader):
+            value, target = value.to(self.device), target.to(self.device)
+            data_time += time.perf_counter() - start_time
+
+            # do training step
+            pred, loss = self.train_step(value, target)
+            iter_time += time.perf_counter() - start_time
+
+            # get loss
+            train_loss += loss.item()
+            # get accuracy
+            pred = torch.argmax(F.softmax(pred, dim=1), dim=1)
+            correct += pred.eq(target.view_as(pred)).sum().item()
+
+        self.epoch += 1
+        if self.scheduler:
+            self.scheduler.step()
+        return {
+            "train_loss": train_loss / (len(dataloader) / len(self.configs.gpus)),
+            "train_acc": correct / (len(dataloader.dataset) / len(self.configs.gpus)),
+            "data_time": data_time / (len(dataloader) / len(self.configs.gpus)),
+            "iter_time": iter_time / (len(dataloader) / len(self.configs.gpus)),
+        }
+
+    def test_epoch(self, test_loader, ood_loader) -> list:
+        self.eval()
+
+        iter_test_loader = iter(test_loader)
+        iter_ood_loader = iter(ood_loader)
+
+        test_loss, correct = 0, 0
+        var_right, var_wrong, var_ood = [], [], []
+        with torch.no_grad():
+            if self.configs.dataset == "nfs":
+                # process test dataset
+                for _, (values, target) in enumerate(iter_test_loader):
+                    preds = torch.zeros(
+                        (len(values), target.shape[0]), device=self.device
+                    )  # space for predicted values
+                    encodings = torch.zeros(
+                        (len(values), target.shape[0], 2048), device=self.device
+                    )  # space for encodings
+                    for i, value in enumerate(values):
+                        value, target = value.to(self.device), target.to(self.device)
+
+                        # do test step
+                        pred, loss = self.test_step(value, target)
+                        encodings[i] = self.encode_step(value)
+
+                        # get loss
+                        test_loss += loss.item()
+                        # get prediction
+                        preds[i] = torch.argmax(F.softmax(pred, dim=1), dim=1)
+
+                    encodings = encodings.transpose(0, 1)
+                    preds = torch.mode(preds, dim=0).values
+                    r = preds.eq(target.view_as(preds))  # idx of correct preds
+                    for i, is_correct in enumerate(r):
+                        if is_correct:
+                            var_right.append(self.ood_metric(encodings[i]))
+                        else:
+                            var_wrong.append(self.ood_metric(encodings[i]))
+
+                    correct += r.sum().item()
+
+                # process ood dataset
+                for _, values in enumerate(iter_ood_loader):
+                    encodings = torch.zeros(
+                        (len(values), values[0].shape[0], 2048), device=self.device
+                    )
+                    for i, value in enumerate(values):
+                        value = value.to(self.device)
+
+                        # do test step
+                        encodings[i] = self.encode_step(value)
+
+                    encodings = encodings.transpose(0, 1)
+                    var_ood = [self.ood_metric(chunk) for chunk in encodings]
+            else:
+                raise NotImplementedError
+
+        in_labels = np.concatenate(
+            [
+                np.ones((len(var_right),), dtype=int),
+                np.zeros((len(var_wrong),), dtype=int),
+            ]
+        )
+        out_labels = np.concatenate(
+            [
+                np.ones((len(var_right),), dtype=int),
+                np.zeros((len(var_ood),), dtype=int),
+            ]
+        )
+        in_values = np.concatenate([var_right, var_wrong])
+        out_values = np.concatenate([var_right, var_ood])
+
+        auroc_in = sk.roc_auc_score(in_labels, in_values)
+        auroc_out = sk.roc_auc_score(out_labels, out_values)
+
+        return {
+            "val_loss": test_loss / (len(test_loader) / len(self.configs.gpus)),
+            "val_acc": correct / (len(test_loader.dataset) / len(self.configs.gpus)),
+            "val_var_right": np.mean(var_right),
+            "val_var_wrong": np.mean(var_wrong),
+            "val_var_ood": np.mean(var_ood),
+            "val_var_all": (np.mean(var_right) + np.mean(var_wrong)) / 2,
+            "val_auroc_in": auroc_in,
+            "val_auroc_out": auroc_out,
+        }
+
+
 class EvalSimCLR(Trainer):
     def __init__(self, configs) -> None:
         super().__init__(configs)
@@ -126,7 +418,9 @@ class EvalSimCLR(Trainer):
         self.encoder = EncodeProject(
             backbone=self.configs.arch, cifar_head=(self.configs.dataset == "cifar")
         )
-        self.load_encoder_ckpt(torch.load(self.configs.chkpt_file))
+        self.encoder = self._load_ckpt(
+            self.encoder, torch.load(self.configs.chkpt_file)
+        )
         self.encoder.to(self.device)
         self.encoder.eval()
 
@@ -157,6 +451,9 @@ class EvalSimCLR(Trainer):
         self.set_up_loss()
 
         self.mean_train_var = utils.RunningAverage()
+
+    def set_up_loss(self) -> None:
+        self.loss = nn.CrossEntropyLoss()
 
     def to(self, device):
         super().to(device)
@@ -209,20 +506,6 @@ class EvalSimCLR(Trainer):
         )
 
         return dataloader
-
-    def set_up_loss(self) -> None:
-        self.loss = nn.CrossEntropyLoss()
-
-    def load_encoder_ckpt(self, model_state_dict) -> None:
-        # TODO: what if we load a non-ddp model?
-        model_dict = OrderedDict()
-        pattern = re.compile("module.")
-        for k, v in model_state_dict.items():
-            if re.search("module", k):
-                model_dict[re.sub(pattern, "", k)] = v
-            else:
-                model_dict = model_state_dict
-        self.encoder.load_state_dict(model_dict)
 
     def ood_metric(self, values: Tensor, train: bool = False):
         if train:

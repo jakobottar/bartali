@@ -63,6 +63,13 @@ class ResNet50(ResNetEncoder):
         )
 
 
+class ResNet152(ResNetEncoder):
+    def __init__(self, cifar_head=True):
+        super().__init__(
+            torchvision.models.resnet.Bottleneck, [3, 8, 36, 3], cifar_head=cifar_head
+        )
+
+
 class BatchNorm1dNoBias(nn.BatchNorm1d):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -78,6 +85,9 @@ class EncodeProject(nn.Module):
                 self.convnet = ResNet18(cifar_head=cifar_head)
                 self.encoder_dim = 512
             case "resnet50" | "50":
+                self.convnet = ResNet50(cifar_head=cifar_head)
+                self.encoder_dim = 2048
+            case "resnet152" | "152":
                 self.convnet = ResNet50(cifar_head=cifar_head)
                 self.encoder_dim = 2048
             case _:

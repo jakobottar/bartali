@@ -56,7 +56,7 @@ class Trainer:
         else:  # self.mode == "ddp"
             return self.model.module.state_dict()
 
-    def load_ckpt(self, model_state_dict) -> None:
+    def _load_ckpt(self, model, model_state_dict):
         # TODO: what if we load a non-ddp model?
         model_dict = OrderedDict()
         pattern = re.compile("module.")
@@ -65,7 +65,12 @@ class Trainer:
                 model_dict[re.sub(pattern, "", k)] = v
             else:
                 model_dict = model_state_dict
-        self.model.load_state_dict(model_dict)
+
+        model.load_state_dict(model_dict)
+        return model
+
+    def load_ckpt(self, model_state_dict) -> None:
+        self.model = self._load_ckpt(model_state_dict)
 
     def set_up_optimizers(self) -> None:
         def exclude_from_wd_and_adaptation(name):
