@@ -1,5 +1,5 @@
 """
-baseline resnet model
+simreg model
 """
 import argparse
 import os
@@ -38,7 +38,7 @@ def worker(rank, world_size, configs):
     )
 
     # set up model
-    resnet = models.ResNet(configs).to_ddp(rank)
+    simreg = models.SimReg(configs).to_ddp(rank)
 
     cudnn.benchmark = True
 
@@ -47,13 +47,10 @@ def worker(rank, world_size, configs):
         mlflow.set_experiment("bartali-artifacts")
         mlflow.start_run(run_name=configs.name)
         mlflow.log_params(configs.as_dict())
-        best_metric = -9999
+        best_metric = 9999
 
     # make structures for all_gather
-    data = {
-        "train_stats": None,
-        "test_stats": None,
-    }
+    data = {"train_stats": None, "test_stats": None}
     outputs = [None for _ in range(world_size)]
 
     for epoch in range(1, configs.epochs + 1):
@@ -61,8 +58,8 @@ def worker(rank, world_size, configs):
             print(f"epoch {epoch} of {configs.epochs} ", end="")
             start_time = time.time()
 
-        data["train_stats"] = resnet.train_epoch(train_dataloader, verbose=False)
-        data["test_stats"] = resnet.test_epoch(test_dataloader, verbose=False)
+        data["train_stats"] = simreg.train_epoch(train_dataloader)
+        data["test_stats"] = simreg.test_epoch(test_dataloader)
 
         dist.all_gather_object(outputs, data)
 
@@ -70,21 +67,20 @@ def worker(rank, world_size, configs):
             metrics = utils.roll_objects(outputs)
             mlflow.log_metrics(metrics, step=epoch)
             mlflow.log_metric(
-                "learning_rate", resnet.scheduler.get_last_lr()[0], step=epoch
+                "learning_rate", simreg.scheduler.get_last_lr()[0], step=epoch
             )
-            if metrics["val_acc"] > best_metric:
-                torch.save(resnet.get_ckpt(), f"{configs.root}/best.pth")
+            if metrics["val_loss"] < best_metric:
+                torch.save(simreg.get_ckpt(), f"{configs.root}/best.pth")
             print(f"{time.time() - start_time:.2f} sec")
 
-        resnet.scheduler.step()
-
     if rank == 0:
-        # torch.save(resnet.get_ckpt(), f"{configs.root}/last.pth")
+        # torch.save(simclr.get_ckpt(), f"{configs.root}/last.pth")
         mlflow.pytorch.log_model(
-            resnet.get_model(), "model", pip_requirements="requirements.txt"
+            simreg.get_model(), "model", pip_requirements="requirements.txt"
         )
         mlflow.log_artifacts(configs.root)
 
+    dist.barrier()
     print("done!")
     utils.cleanup()
 
@@ -105,13 +101,13 @@ if __name__ == "__main__":
         cudnn.deterministic = True
 
     if configs.name == "random":
-        configs.name = "baseline-" + namegenerator.gen()
+        configs.name = "simreg-" + namegenerator.gen()
     else:
-        configs.name = "baseline-" + configs.name
+        configs.name = "simreg-" + configs.name
 
     print(f"Run name: {configs.name}")
     try:
-        os.mkdir(f"runs/{configs.name}")
+        os.mkdir(f"{configs.root}/{configs.name}")
     except FileExistsError as error:
         pass
     configs.root = f"{configs.root}/{configs.name}"

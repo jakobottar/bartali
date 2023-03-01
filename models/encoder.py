@@ -63,6 +63,13 @@ class ResNet50(ResNetEncoder):
         )
 
 
+class ResNet152(ResNetEncoder):
+    def __init__(self, cifar_head=True):
+        super().__init__(
+            torchvision.models.resnet.Bottleneck, [3, 8, 36, 3], cifar_head=cifar_head
+        )
+
+
 class BatchNorm1dNoBias(nn.BatchNorm1d):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -79,6 +86,9 @@ class EncodeProject(nn.Module):
                 self.encoder_dim = 512
             case "resnet50" | "50":
                 self.convnet = ResNet50(cifar_head=cifar_head)
+                self.encoder_dim = 2048
+            case "resnet152" | "152":
+                self.convnet = ResNet152(cifar_head=cifar_head)
                 self.encoder_dim = 2048
             case _:
                 raise NotImplementedError(f"Cound not load model {backbone}.")
@@ -99,3 +109,47 @@ class EncodeProject(nn.Module):
         if out == "h":
             return h
         return self.projection(h)
+
+
+class TwoHeadedEncoder(nn.Module):
+    def __init__(self, backbone, n_classes, cifar_head=True):
+        super().__init__()
+
+        match backbone:
+            case "resnet18" | "18":
+                self.convnet = ResNet18(cifar_head=cifar_head)
+                self.encoder_dim = 512
+            case "resnet50" | "50":
+                self.convnet = ResNet50(cifar_head=cifar_head)
+                self.encoder_dim = 2048
+            case "resnet152" | "152":
+                self.convnet = ResNet152(cifar_head=cifar_head)
+                self.encoder_dim = 2048
+            case _:
+                raise NotImplementedError(f"Cound not load model {backbone}.")
+
+        projection_layers = [
+            (
+                "fc1",
+                nn.Linear(self.encoder_dim, self.encoder_dim, bias=False),
+            ),
+            ("bn1", nn.BatchNorm1d(self.encoder_dim)),
+            ("relu1", nn.ReLU()),
+            ("fc2", nn.Linear(self.encoder_dim, 128, bias=False)),
+            ("bn2", BatchNorm1dNoBias(128)),
+        ]
+        self.projhead = nn.Sequential(OrderedDict(projection_layers))
+
+        eval_layers = [
+            (
+                "fc1",
+                nn.Linear(self.encoder_dim, n_classes),
+            ),
+        ]
+        self.evalhead = nn.Sequential(OrderedDict(eval_layers))
+
+    def forward(self, x):
+        x = self.convnet(x)
+        p = self.projhead(x)
+        e = self.evalhead(x)
+        return p, e
