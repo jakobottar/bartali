@@ -114,7 +114,7 @@ def prepare_dataloaders(
                 split="ood",
                 transform=transform,
                 get_all_mag=configs.multi_mag_majority_vote,
-                ood_classes=OOD_CLASSES,
+                ood_classes=["UO3AUC", "U3O8MDU"],
             )
 
         case _:
