@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 import utils
 
-from .encoder import EncodeProject
+from .encoder import BatchNorm1dNoBias, EncodeProject, TwoHeadedEncoder
 from .trainernet import Trainer
 
 
@@ -115,7 +115,120 @@ class SimCLR(Trainer):
                 if verbose:
                     loader.set_description(f"test loss: {loss.item():.4f}")
 
-        return {"test_loss": test_loss / (len(dataloader) / len(self.configs.gpus))}
+        return {"val_loss": test_loss / (len(dataloader) / len(self.configs.gpus))}
+
+
+class SimReg(Trainer):
+    def __init__(self, configs) -> None:
+        super().__init__(configs)
+        self.model = TwoHeadedEncoder(
+            backbone=configs.arch,
+            n_classes=(16 if configs.dataset == "nfs" else 10),
+            cifar_head=(configs.dataset == "cifar"),
+        )
+
+        self.regloss = None
+        self.evalloss = None
+
+        self.reset_parameters()
+        self.set_up_optimizers()
+        self.set_up_loss()
+
+    def reset_parameters(self):
+        def conv2d_weight_truncated_normal_init(p):
+            fan_in = p.shape[1]
+            stddev = np.sqrt(1.0 / fan_in) / 0.87962566103423978
+            r = scipy.stats.truncnorm.rvs(-2, 2, loc=0, scale=1.0, size=p.shape)
+            r = stddev * r
+            with torch.no_grad():
+                p.copy_(torch.FloatTensor(r))
+
+        def linear_normal_init(p):
+            with torch.no_grad():
+                p.normal_(std=0.01)
+
+        for m in self.model.modules():
+            if isinstance(m, torch.nn.Conv2d):
+                conv2d_weight_truncated_normal_init(m.weight)
+            elif isinstance(m, torch.nn.Linear):
+                linear_normal_init(m.weight)
+
+    def set_up_loss(self):
+        self.regloss = utils.NTXent(
+            tau=self.configs.tau,
+            multiplier=int(self.configs.multiplier),
+            distributed=(self.mode == "ddp"),
+        )
+        self.evalloss = nn.CrossEntropyLoss()
+
+    def step(self, value, target):
+
+        projection, prediction = self.model(value)
+        loss_proj = self.regloss(projection)
+        loss_pred = self.evalloss(prediction, target)
+
+        return (prediction, loss_proj + loss_pred)
+
+    def train_epoch(self, dataloader) -> dict:
+        self.train()
+
+        if isinstance(dataloader.sampler, DistributedSampler):
+            dataloader.sampler.set_epoch(self.epoch)
+
+        loader = iter(dataloader)
+
+        train_loss, correct = 0, 0
+        data_time, iter_time = 0.0, 0.0
+        start_time = time.perf_counter()
+        for _, (value, target) in enumerate(loader):
+            value, target = value.to(self.device), target.to(self.device)
+            data_time += time.perf_counter() - start_time
+
+            # do training step
+            pred, loss = self.train_step(value, target)
+            iter_time += time.perf_counter() - start_time
+
+            # get loss
+            train_loss += loss.item()
+            # get accuracy
+            pred = torch.argmax(F.softmax(pred, dim=1), dim=1)
+            correct += pred.eq(target.view_as(pred)).sum().item()
+
+        self.epoch += 1
+        if self.scheduler:
+            self.scheduler.step()
+        return {
+            "train_loss": train_loss / (len(dataloader) / len(self.configs.gpus)),
+            "train_acc": correct
+            / (len(dataloader.dataset) * 2 / len(self.configs.gpus)),
+            "data_time": data_time / (len(dataloader) / len(self.configs.gpus)),
+            "iter_time": iter_time / (len(dataloader) / len(self.configs.gpus)),
+        }
+
+    def test_epoch(self, dataloader) -> list:
+        self.eval()
+
+        loader = iter(dataloader)
+
+        test_loss, correct = 0, 0
+        with torch.no_grad():
+            for _, (value, target) in enumerate(loader):
+                value, target = value.to(self.device), target.to(self.device)
+
+                # do testing step
+                pred, loss = self.test_step(value, target)
+
+                # get loss
+                test_loss += loss.item()
+
+                # get accuracy
+                pred = torch.argmax(F.softmax(pred, dim=1), dim=1)
+                correct += pred.eq(target.view_as(pred)).sum().item()
+
+        return {
+            "val_loss": test_loss / (len(dataloader) / len(self.configs.gpus)),
+            "val_acc": correct / (len(dataloader.dataset) * 2 / len(self.configs.gpus)),
+        }
 
 
 class EvalSimCLR(Trainer):
@@ -133,14 +246,8 @@ class EvalSimCLR(Trainer):
         # push torch.ones through the model to get input size
         match self.configs.dataset:
             case "cifar":
-                hdim = self.encoder(
-                    torch.ones(10, 3, 32, 32).to(self.device), out="h"
-                ).shape[1]
                 n_classes = 10
             case "nfs":
-                hdim = self.encoder(
-                    torch.ones(10, 3, 256, 256).to(self.device), out="h"
-                ).shape[1]
                 n_classes = 16
             case _:
                 raise NotImplementedError(
@@ -148,7 +255,7 @@ class EvalSimCLR(Trainer):
                 )
 
         # build a linear layer to choose classes
-        model = nn.Linear(hdim, n_classes).to(self.device)
+        model = nn.Linear(self.encoder.encoder_dim, n_classes).to(self.device)
         model.weight.data.zero_()
         model.bias.data.zero_()
         self.model = model

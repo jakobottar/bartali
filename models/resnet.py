@@ -19,6 +19,8 @@ class ResNet(Trainer):
                 self.model = models.resnet18(weights="DEFAULT")
             case "resnet50" | "50":
                 self.model = models.resnet50(weights="DEFAULT")
+            case "resnet152" | "152":
+                self.model = models.resnet152(weights="DEFAULT")
             case _:
                 raise NotImplementedError(f"Cound not load model {configs.arch}.")
 
@@ -89,6 +91,6 @@ class ResNet(Trainer):
                     loader.set_description(f"test loss: {loss.item():.4f}")
 
         return {
-            "test_loss": test_loss / (len(dataloader) / len(self.configs.gpus)),
-            "test_acc": correct / (len(dataloader.dataset) / len(self.configs.gpus)),
+            "val_loss": test_loss / (len(dataloader) / len(self.configs.gpus)),
+            "val_acc": correct / (len(dataloader.dataset) / len(self.configs.gpus)),
         }
