@@ -69,7 +69,7 @@ def worker(rank, world_size, configs):
             mlflow.log_metric(
                 "learning_rate", simclr.scheduler.get_last_lr()[0], step=epoch
             )
-            if metrics["test_loss"] < best_metric:
+            if metrics["val_loss"] < best_metric:
                 torch.save(simclr.get_ckpt(), f"{configs.root}/best.pth")
             print(f"{time.time() - start_time:.2f} sec")
 

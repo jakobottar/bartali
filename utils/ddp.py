@@ -91,7 +91,8 @@ def prepare_dataloaders(
                 ]
             )
 
-            OOD_CLASSES = ["UO3AUC", "U3O8MDU"]
+            # OOD_CLASSES = ["UO3AUC", "U3O8MDU"]
+            OOD_CLASSES = []
             train_dataset = MagImageDataset(
                 configs.dataset_location,
                 split="train",
