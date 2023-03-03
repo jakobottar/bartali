@@ -266,16 +266,26 @@ class EvalSimCLR(Trainer):
         self.mean_train_var = utils.RunningAverage()
 
     def freeze_encoder(self) -> None:
+        self.encoder.eval()
         for param in self.encoder.parameters():
             param.requires_grad = False
 
     def unfreeze_encoder(self) -> None:
+        # self.encoder.train()
         for param in self.encoder.parameters():
             param.requires_grad = True
 
         self.optimizer.add_param_group(
             {"params": self.encoder.parameters(), "lr": 1e-4}
         )
+
+    def eval(self) -> None:
+        self.model.eval()
+        self.encoder.eval()
+
+    def train(self) -> None:
+        self.model.train()
+        # self.encoder.train()
 
     def to(self, device):
         super().to(device)
