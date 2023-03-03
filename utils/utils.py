@@ -9,7 +9,7 @@ from torch import Tensor
 class ConfigStruct:
     arch: str = "resnet18"  # resnet18 or resnet50, backbone model architecture
     name: str = "random"  # run name
-    chkpt_file: str = "./model.pth"  # checkpoint to resume from
+    chkpt_file: str = "none"  # checkpoint to resume from
     dataset: str = "cifar"  # cifar, dataset
     dataset_location: str = "./data/"  # dataset filepath
 
@@ -34,6 +34,7 @@ class ConfigStruct:
     gpus: str | tuple = (0,)  # str or tuple, gpu(s) to use
     port: str = "29500"  # DDP port
     root: str = "runs"  # root of folder to save runs in
+    mode: str = "frozen"  # model training mode
 
     as_dict = asdict
 

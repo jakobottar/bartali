@@ -241,7 +241,7 @@ class EvalSimCLR(Trainer):
         )
         self.load_encoder_ckpt(torch.load(self.configs.chkpt_file))
         self.encoder.to(self.device)
-        self.encoder.eval()
+        self.freeze_encoder()
 
         # push torch.ones through the model to get input size
         match self.configs.dataset:
@@ -264,6 +264,28 @@ class EvalSimCLR(Trainer):
         self.set_up_loss()
 
         self.mean_train_var = utils.RunningAverage()
+
+    def freeze_encoder(self) -> None:
+        self.encoder.eval()
+        for param in self.encoder.parameters():
+            param.requires_grad = False
+
+    def unfreeze_encoder(self) -> None:
+        # self.encoder.train()
+        for param in self.encoder.parameters():
+            param.requires_grad = True
+
+        self.optimizer.add_param_group(
+            {"params": self.encoder.parameters(), "lr": 1e-4}
+        )
+
+    def eval(self) -> None:
+        self.model.eval()
+        self.encoder.eval()
+
+    def train(self) -> None:
+        self.model.train()
+        # self.encoder.train()
 
     def to(self, device):
         super().to(device)
@@ -375,88 +397,38 @@ class EvalSimCLR(Trainer):
             "iter_time": iter_time / (len(dataloader) / len(self.configs.gpus)),
         }
 
-    def test_epoch(self, test_loader, ood_loader) -> list:
+    def test_epoch(self, test_loader) -> list:
         self.eval()
 
         iter_test_loader = iter(test_loader)
-        iter_ood_loader = iter(ood_loader)
 
         test_loss, correct = 0, 0
-        var_right, var_wrong, var_ood = [], [], []
         with torch.no_grad():
             if self.configs.dataset == "nfs":
                 # process test dataset
-                for _, (values, target) in enumerate(iter_test_loader):
+                for values, target in iter_test_loader:
                     preds = torch.zeros(
                         (len(values), target.shape[0]), device=self.device
                     )  # space for predicted values
-                    encodings = torch.zeros(
-                        (len(values), target.shape[0], 2048), device=self.device
-                    )  # space for encodings
                     for i, value in enumerate(values):
                         value, target = value.to(self.device), target.to(self.device)
 
                         # do test step
                         pred, loss = self.test_step(value, target)
-                        encodings[i] = self.encode_step(value)
 
                         # get loss
                         test_loss += loss.item()
+
                         # get prediction
                         preds[i] = torch.argmax(F.softmax(pred, dim=1), dim=1)
 
-                    encodings = encodings.transpose(0, 1)
                     preds = torch.mode(preds, dim=0).values
-                    r = preds.eq(target.view_as(preds))  # idx of correct preds
-                    for i, is_correct in enumerate(r):
-                        if is_correct:
-                            var_right.append(self.ood_metric(encodings[i]))
-                        else:
-                            var_wrong.append(self.ood_metric(encodings[i]))
+                    correct += preds.eq(target.view_as(preds)).sum().item()
 
-                    correct += r.sum().item()
-
-                # process ood dataset
-                for _, values in enumerate(iter_ood_loader):
-                    encodings = torch.zeros(
-                        (len(values), values[0].shape[0], 2048), device=self.device
-                    )
-                    for i, value in enumerate(values):
-                        value = value.to(self.device)
-
-                        # do test step
-                        encodings[i] = self.encode_step(value)
-
-                    encodings = encodings.transpose(0, 1)
-                    var_ood = [self.ood_metric(chunk) for chunk in encodings]
             else:
                 raise NotImplementedError
-
-        in_labels = np.concatenate(
-            [
-                np.ones((len(var_right),), dtype=int),
-                np.zeros((len(var_wrong),), dtype=int),
-            ]
-        )
-        out_labels = np.concatenate(
-            [
-                np.ones((len(var_right),), dtype=int),
-                np.zeros((len(var_ood),), dtype=int),
-            ]
-        )
-        in_values = np.concatenate([var_right, var_wrong])
-        out_values = np.concatenate([var_right, var_ood])
-
-        auroc_in = sk.roc_auc_score(in_labels, in_values)
-        auroc_out = sk.roc_auc_score(out_labels, out_values)
 
         return {
             "val_loss": test_loss / (len(test_loader) / len(self.configs.gpus)),
             "val_acc": correct / (len(test_loader.dataset) / len(self.configs.gpus)),
-            "val_var_right": np.mean(var_right),
-            "val_var_wrong": np.mean(var_wrong),
-            "val_var_ood": np.mean(var_ood),
-            "val_var_all": (np.mean(var_right) + np.mean(var_wrong)) / 2,
-            "val_auroc_in": auroc_in,
-            "val_auroc_out": auroc_out,
         }
