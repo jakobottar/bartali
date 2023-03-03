@@ -1,14 +1,12 @@
 arch: resnet50
-name: nfs-2
+name: random
 dataset: nfs
 dataset_location: /nvmescratch/jakobj/multimag
 batch_size: 64
 workers: 2
+epochs: 5
 lr: 0.001
 lr_schedule: exponential
 lr_gamma: 0.97
-epochs: 250
 weight_decay: 1.0e-4
-seed: -1
 gpus: [0, 1, 2, 3]
-port: 1234

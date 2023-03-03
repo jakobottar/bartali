@@ -1,17 +1,15 @@
 arch: resnet50
-name: nfs-4
+name: random
 dataset: nfs
 dataset_location: /nvmescratch/jakobj/multimag
 batch_size: 512
 workers: 2
+epochs: 5
 lr_schedule: cosine-anneal
-epochs: 1000
 lr: 4.
 weight_decay: 1.0e-6
+optimizer: lars
 tau: 1.
 multiplier: 2
 find_unused_parameters: True
-seed: -1
 gpus: [0, 1, 2, 3]
-optimizer: lars
-port: 1234

@@ -61,39 +61,15 @@ def worker(rank, world_size, configs):
         "test_stats": None,
     }
     outputs = [None for _ in range(world_size)]
-    start_epoch = 1
 
-    if configs.mode == "tune":
-        NUM_FROZEN_EPOCHS = 20
-        configs.mode = "freeze"
-        for epoch in range(start_epoch, NUM_FROZEN_EPOCHS + 1):
-            if rank == 0:
-                print(f"epoch {epoch} of {configs.epochs} ", end="")
-                start_time = time.time()
-
-            data["train_stats"] = eval_simclr.train_epoch(train_dataloader)
-            data["test_stats"] = eval_simclr.test_epoch(test_dataloader)
-
-            dist.all_gather_object(outputs, data)
-
-            if rank == 0:
-                metrics = utils.roll_objects(outputs)
-                mlflow.log_metrics(metrics, step=epoch)
-                mlflow.log_metric(
-                    "learning_rate", eval_simclr.scheduler.get_last_lr()[0], step=epoch
-                )
-                if metrics["val_loss"] > best_metric:
-                    torch.save(eval_simclr.get_ckpt(), f"{configs.root}/best.pth")
-                print(f"{time.time() - start_time:.2f} sec")
-
-        start_epoch = NUM_FROZEN_EPOCHS + 1
-        eval_simclr.unfreeze_encoder()
-        configs.mode = "tune"
-
-    for epoch in range(start_epoch, configs.epochs + 1):
+    for epoch in range(1, configs.epochs + 1):
         if rank == 0:
             print(f"epoch {epoch} of {configs.epochs} ", end="")
             start_time = time.time()
+
+        if configs.mode == "tune" and epoch > configs.frozen_epochs:
+            eval_simclr.unfreeze_encoder()
+            configs.mode = "tuning"
 
         data["train_stats"] = eval_simclr.train_epoch(train_dataloader)
         data["test_stats"] = eval_simclr.test_epoch(test_dataloader)

@@ -167,7 +167,12 @@ class SimReg(Trainer):
         loss_proj = self.regloss(projection)
         loss_pred = self.evalloss(prediction, target)
 
-        return (prediction, loss_proj + loss_pred)
+        loss = (
+            self.configs.ntxent_loss_weight * loss_proj
+            + self.configs.ce_loss_weight * loss_pred
+        )
+
+        return (prediction, loss)
 
     def train_epoch(self, dataloader) -> dict:
         self.train()
