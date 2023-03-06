@@ -77,17 +77,23 @@ def prepare_dataloaders(
             )
 
         case "nfs":
-            transform = transforms.Compose(
+            image_size = 256
+            train_transform = transforms.Compose(
                 [
-                    transforms.RandomResizedCrop(
-                        256,
-                        scale=(0.08, 1.0),
-                        interpolation=transforms.InterpolationMode.BICUBIC,
-                    ),
                     transforms.RandomHorizontalFlip(),
-                    # get_color_distortion(),
+                    transforms.RandomVerticalFlip(),
+                    transforms.ColorJitter(brightness=0.5),
+                    transforms.RandomResizedCrop(image_size),
                     transforms.ToTensor(),
-                    Clamp(),
+                    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+                ]
+            )
+
+            val_transform = transforms.Compose(
+                [
+                    transforms.CenterCrop(image_size),
+                    transforms.ToTensor(),
+                    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
                 ]
             )
 
@@ -96,7 +102,7 @@ def prepare_dataloaders(
             train_dataset = MagImageDataset(
                 configs.dataset_location,
                 split="train",
-                transform=transform,
+                transform=train_transform,
                 get_all_mag=False,
                 ood_classes=OOD_CLASSES,
             )
@@ -104,7 +110,7 @@ def prepare_dataloaders(
             test_dataset = MagImageDataset(
                 configs.dataset_location,
                 split="test",
-                transform=transform,
+                transform=val_transform,
                 get_all_mag=configs.multi_mag_majority_vote,
                 ood_classes=OOD_CLASSES,
             )
@@ -112,7 +118,7 @@ def prepare_dataloaders(
             ood_dataset = MagImageDataset(
                 configs.dataset_location,
                 split="ood",
-                transform=transform,
+                transform=val_transform,
                 get_all_mag=configs.multi_mag_majority_vote,
                 ood_classes=OOD_CLASSES,
             )
