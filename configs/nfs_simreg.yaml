@@ -4,12 +4,12 @@ dataset: nfs
 dataset_location: /nvmescratch/jakobj/multimag
 batch_size: 512
 workers: 2
-epochs: 5
+epochs: 1000
 lr_schedule: cosine-anneal
-lr: 4.
+lr: 1
 weight_decay: 1.0e-6
 optimizer: lars
-tau: 1.
+tau: 0.5
 multiplier: 2
 find_unused_parameters: True
 gpus: [0, 1, 2, 3]

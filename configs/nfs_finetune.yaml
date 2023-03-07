@@ -1,17 +1,17 @@
 arch: resnet50
 name: random
-chkpt_file: ./nfs.pth
+chkpt_file: ./runs/simclr-nfs/best.pth
 dataset: nfs
 dataset_location: /nvmescratch/jakobj/multimag
 batch_size: 64
 workers: 2
-epochs: 10
+epochs: 150
+frozen_epochs: 20
 lr_schedule: exponential
 lr_gamma: 0.97
 lr: 0.01
-weight_decay: 1.0e-6
+weight_decay: 1.0e-5
 optimizer: adam
 multi_mag_majority_vote: True
 gpus: [0, 1, 2, 3]
 mode: tune
-frozen_epochs: 5
