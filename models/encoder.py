@@ -138,10 +138,9 @@ class TwoHeadedEncoder(nn.Module):
         self.projhead = nn.Sequential(OrderedDict(projection_layers))
 
         eval_layers = [
-            (
-                "fc1",
-                nn.Linear(self.encoder_dim, n_classes),
-            ),
+            ("fc1", nn.Linear(self.encoder_dim, self.encoder_dim)),
+            ("relu1", nn.ReLU()),
+            ("fc2", nn.Linear(self.encoder_dim, n_classes)),
         ]
         self.evalhead = nn.Sequential(OrderedDict(eval_layers))
 
