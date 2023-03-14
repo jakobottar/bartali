@@ -121,7 +121,7 @@ class Trainer:
                 )
             case "cosine-anneal":
                 self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                    self.optimizer, self.configs.epochs
+                    self.optimizer, 1000
                 )
             case "constant":
                 self.scheduler = None

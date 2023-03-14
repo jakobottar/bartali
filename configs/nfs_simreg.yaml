@@ -6,7 +6,7 @@ batch_size: 512
 workers: 2
 epochs: 1000
 lr_schedule: cosine-anneal
-lr: 1
+lr: 1.
 weight_decay: 1.0e-6
 optimizer: lars
 tau: 0.5
@@ -14,4 +14,4 @@ multiplier: 2
 find_unused_parameters: True
 gpus: [0, 1, 2, 3]
 ce_loss_weight: 1
-ntxent_loss_weight: 1
+ntxent_loss_weight: 0.001

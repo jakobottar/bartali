@@ -12,6 +12,7 @@ class ConfigStruct:
     chkpt_file: str = "none"  # checkpoint to resume from
     dataset: str = "cifar"  # dataset
     dataset_location: str = "./data/"  # dataset filepath
+    fold_num: int = 0  # data fold num, for nfs
 
     optimizer: str = "adam"  # optimizer
     batch_size: int = 8  # int, batch size

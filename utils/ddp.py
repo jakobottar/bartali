@@ -82,7 +82,7 @@ def prepare_dataloaders(
                 [
                     transforms.RandomHorizontalFlip(),
                     transforms.RandomVerticalFlip(),
-                    transforms.ColorJitter(brightness=0.5),
+                    # transforms.ColorJitter(brightness=0.5),
                     transforms.RandomResizedCrop(image_size),
                     transforms.ToTensor(),
                     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
@@ -105,22 +105,25 @@ def prepare_dataloaders(
                 transform=train_transform,
                 get_all_mag=False,
                 ood_classes=OOD_CLASSES,
+                fold=configs.fold_num,
             )
 
             test_dataset = MagImageDataset(
                 configs.dataset_location,
                 split="test",
-                transform=val_transform,
+                transform=train_transform,
                 get_all_mag=configs.multi_mag_majority_vote,
                 ood_classes=OOD_CLASSES,
+                fold=configs.fold_num,
             )
 
             ood_dataset = MagImageDataset(
                 configs.dataset_location,
                 split="ood",
-                transform=val_transform,
+                transform=train_transform,
                 get_all_mag=configs.multi_mag_majority_vote,
                 ood_classes=OOD_CLASSES,
+                fold=configs.fold_num,
             )
 
         case _:
@@ -135,7 +138,7 @@ def prepare_dataloaders(
     batch_sampler = MultiplyBatchSampler
     batch_sampler.multiplier = configs.multiplier
 
-    train_sampler = DistributedSampler(train_dataset)
+    train_sampler = DistributedSampler(train_dataset, shuffle=True)
 
     train_dataloader = DataLoader(
         train_dataset,
@@ -144,7 +147,7 @@ def prepare_dataloaders(
         batch_sampler=batch_sampler(train_sampler, configs.batch_size, drop_last=False),
     )
 
-    test_sampler = DistributedSampler(test_dataset)
+    test_sampler = DistributedSampler(test_dataset, shuffle=False)
 
     test_dataloader = DataLoader(
         test_dataset,

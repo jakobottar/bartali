@@ -244,7 +244,7 @@ class EvalSimCLR(Trainer):
         self.encoder = EncodeProject(
             backbone=self.configs.arch, cifar_head=(self.configs.dataset == "cifar")
         )
-        self.load_encoder_ckpt(torch.load(self.configs.chkpt_file))
+        self.load_encoder_ckpt(torch.load(self.configs.chkpt_file, map_location="cpu"))
         self.encoder.to(self.device)
         self.freeze_encoder()
 
