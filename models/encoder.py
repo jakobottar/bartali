@@ -129,10 +129,7 @@ class TwoHeadedEncoder(nn.Module):
                 raise NotImplementedError(f"Cound not load model {backbone}.")
 
         projection_layers = [
-            (
-                "fc1",
-                nn.Linear(self.encoder_dim, self.encoder_dim, bias=False),
-            ),
+            ("fc1", nn.Linear(self.encoder_dim, self.encoder_dim, bias=False)),
             ("bn1", nn.BatchNorm1d(self.encoder_dim)),
             ("relu1", nn.ReLU()),
             ("fc2", nn.Linear(self.encoder_dim, 128, bias=False)),

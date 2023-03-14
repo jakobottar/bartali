@@ -46,18 +46,19 @@ class MagImageDataset(Dataset):
         transform=None,
         get_all_mag: bool = False,
         ood_classes=[],
+        fold=0,
     ) -> None:
         super().__init__()
         match split:
             case "train":
-                self.df = pd.read_csv(os.path.join(root, "train_0.csv"))
+                self.df = pd.read_csv(os.path.join(root, f"train_{fold}.csv"))
                 self.df = self.df[self.df.label.isin(ood_classes) == False]
             case "test" | "val":
-                self.df = pd.read_csv(os.path.join(root, "val_0.csv"))
+                self.df = pd.read_csv(os.path.join(root, f"val_{fold}.csv"))
                 self.df = self.df[self.df.label.isin(ood_classes) == False]
             case "ood":
-                train_half = pd.read_csv(os.path.join(root, "train_0.csv"))
-                val_half = pd.read_csv(os.path.join(root, "val_0.csv"))
+                train_half = pd.read_csv(os.path.join(root, f"train_{fold}.csv"))
+                val_half = pd.read_csv(os.path.join(root, f"val_{fold}.csv"))
                 self.df = pd.concat([train_half, val_half])
                 self.df = self.df[self.df.label.isin(ood_classes)]
             case _:
