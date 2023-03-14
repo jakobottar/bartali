@@ -1,11 +1,10 @@
 import re
 import shutil
 import time
-from typing import OrderedDict
+from collections import OrderedDict
 
 import numpy as np
 import scipy
-import sklearn.metrics as sk
 import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
@@ -15,7 +14,7 @@ from tqdm import tqdm
 
 import utils
 
-from .encoder import BatchNorm1dNoBias, EncodeProject, TwoHeadedEncoder
+from .encoder import EncodeProject, TwoHeadedEncoder
 from .trainernet import Trainer
 
 
@@ -259,10 +258,23 @@ class EvalSimCLR(Trainer):
                     f"Cound not load dataset {self.configs.dataset}."
                 )
 
-        # build a linear layer to choose classes
-        model = nn.Linear(self.encoder.encoder_dim, n_classes).to(self.device)
-        model.weight.data.zero_()
-        model.bias.data.zero_()
+        # build a non-linear classification head
+        model = [
+            ("fc1", nn.Linear(self.encoder.encoder_dim, self.encoder.encoder_dim)),
+            ("relu1", nn.ReLU()),
+            ("fc2", nn.Linear(self.encoder.encoder_dim, n_classes)),
+        ]
+
+        model = nn.Sequential(OrderedDict(model)).to(self.device)
+
+        def linear_normal_init(p):
+            with torch.no_grad():
+                p.normal_(std=0.01)
+
+        for m in self.model.modules():
+            if isinstance(m, torch.nn.Linear):
+                linear_normal_init(m.weight)
+
         self.model = model
 
         self.set_up_optimizers()
