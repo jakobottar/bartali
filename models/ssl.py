@@ -21,10 +21,9 @@ from .trainernet import Trainer
 class SimCLR(Trainer):
     def __init__(self, configs) -> None:
         super().__init__(configs)
-        self.model = EncodeProject(
-            backbone=configs.arch, cifar_head=(configs.dataset == "cifar")
-        )
-        self.reset_parameters()
+        self.model = EncodeProject(backbone=configs.arch)
+        
+        # self.reset_parameters()
         self.set_up_optimizers()
         self.set_up_loss()
 
@@ -121,15 +120,13 @@ class SimReg(Trainer):
     def __init__(self, configs) -> None:
         super().__init__(configs)
         self.model = TwoHeadedEncoder(
-            backbone=configs.arch,
-            n_classes=(16 if configs.dataset == "nfs" else 10),
-            cifar_head=(configs.dataset == "cifar"),
+            backbone=configs.arch, n_classes=(16 if configs.dataset == "nfs" else 10)
         )
 
         self.regloss = None
         self.evalloss = None
 
-        self.reset_parameters()
+        # self.reset_parameters()
         self.set_up_optimizers()
         self.set_up_loss()
 
@@ -240,9 +237,7 @@ class EvalSimCLR(Trainer):
         super().__init__(configs)
 
         # Load a trained SIMCLR model
-        self.encoder = EncodeProject(
-            backbone=self.configs.arch, cifar_head=(self.configs.dataset == "cifar")
-        )
+        self.encoder = EncodeProject(backbone=self.configs.arch)
         self.load_encoder_ckpt(torch.load(self.configs.chkpt_file, map_location="cpu"))
         self.encoder.to(self.device)
         self.freeze_encoder()

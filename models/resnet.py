@@ -17,12 +17,18 @@ class ResNet(Trainer):
         match configs.arch:
             case "resnet18" | "18":
                 self.model = models.resnet18(weights="DEFAULT")
+                encoder_dim = 512
             case "resnet50" | "50":
                 self.model = models.resnet50(weights="DEFAULT")
+                encoder_dim = 2048
             case "resnet152" | "152":
                 self.model = models.resnet152(weights="DEFAULT")
+                encoder_dim = 2048
             case _:
                 raise NotImplementedError(f"Cound not load model {configs.arch}.")
+
+        n_classes = 16 if configs.dataset == "nfs" else 10
+        self.model.fc = nn.Linear(encoder_dim, n_classes)
 
         self.set_up_optimizers()
         self.set_up_loss()
