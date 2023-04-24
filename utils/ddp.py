@@ -40,7 +40,6 @@ class Clamp(object):
 def prepare_dataloaders(
     rank: int, world_size: int, configs, include_ood_dataloader: bool = False
 ):
-
     match configs.dataset:
         case "cifar":
             transform = transforms.Compose(
@@ -98,13 +97,12 @@ def prepare_dataloaders(
             )
 
             # OOD_CLASSES = ["UO3AUC", "U3O8MDU"]
-            OOD_CLASSES = []
             train_dataset = MagImageDataset(
                 configs.dataset_location,
                 split="train",
                 transform=train_transform,
                 get_all_mag=False,
-                ood_classes=OOD_CLASSES,
+                ood_classes=configs.drop_classes,
                 fold=configs.fold_num,
             )
 
@@ -113,7 +111,6 @@ def prepare_dataloaders(
                 split="test",
                 transform=train_transform,
                 get_all_mag=configs.multi_mag_majority_vote,
-                ood_classes=OOD_CLASSES,
                 fold=configs.fold_num,
             )
 
@@ -122,7 +119,7 @@ def prepare_dataloaders(
                 split="ood",
                 transform=train_transform,
                 get_all_mag=configs.multi_mag_majority_vote,
-                ood_classes=OOD_CLASSES,
+                ood_classes=configs.drop_classes,
                 fold=configs.fold_num,
             )
 

@@ -36,6 +36,7 @@ class ConfigStruct:
     multi_mag_majority_vote: bool = (
         False  # should eval use majority vote on all magnifications?
     )
+    drop_classes: tuple = ()
 
     seed: int = -1  # random seed, -1 for random
     gpus: str | tuple = (0,)  # str or tuple, gpu(s) to use

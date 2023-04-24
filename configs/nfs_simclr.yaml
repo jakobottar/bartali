@@ -1,8 +1,8 @@
 arch: resnet50
-name: random
+name: drop-two
 dataset: nfs
 dataset_location: /nvmescratch/jakobj/multimag
-batch_size: 512
+batch_size: 400
 workers: 2
 epochs: 1000
 lr_schedule: cosine-anneal
@@ -11,5 +11,6 @@ weight_decay: 1.0e-6
 optimizer: lars
 tau: 0.5
 multiplier: 2
-find_unused_parameters: True
-gpus: [0, 1, 2, 3]
+gpus: [1, 2]
+# drop_classes: []
+drop_classes: ["UO3AUC", "UO3SDU"] #, "U3O8AUC", "UO2SDU"]
