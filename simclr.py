@@ -91,6 +91,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-c", "--config", type=str, default=None, help="config file location"
     )
+    parser.add_argument("-e", "--epochs", type=int, default=None)
     parser.add_argument("--name", type=str, default=None)
     parser.add_argument("--chkpt-file", type=str, default=None)
     parser.add_argument("--drop-classes", type=str, default=None, nargs="+")

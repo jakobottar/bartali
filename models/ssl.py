@@ -7,7 +7,7 @@ import numpy as np
 import scipy
 import torch
 import torch.nn.functional as F
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix
 from torch import nn
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
@@ -321,7 +321,7 @@ class EvalSimCLR(Trainer):
             "val_acc": correct / (len(test_loader.dataset) / len(self.configs.gpus)),
         }
 
-    def create_confusion_matrix(self, loader):
+    def create_confusion_matrix(self, loader) -> ConfusionMatrixDisplay:
         self.eval()
 
         iter_loader = iter(loader)
@@ -348,8 +348,5 @@ class EvalSimCLR(Trainer):
                 pred_classes.extend(preds.cpu().numpy())
                 correct_classes.extend(target.cpu().numpy())
 
-        confusion = confusion_matrix(
-            pred_classes, correct_classes
-        )  # , normalize="true")
-
-        return confusion
+        confusion = confusion_matrix(pred_classes, correct_classes, normalize="true")
+        return ConfusionMatrixDisplay(confusion, display_labels=utils.ROUTES)
