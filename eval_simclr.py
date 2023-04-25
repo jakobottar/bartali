@@ -86,8 +86,11 @@ def worker(rank, world_size, configs):
                 torch.save(eval_simclr.get_ckpt(), f"{configs.root}/best.pth")
             print(f"{time.time() - start_time:.2f} sec")
 
+    # TODO: handle across multiple threads
+    print(eval_simclr.create_confusion_matrix(test_dataloader))
+
     if rank == 0:
-        # torch.save(eval_simclr.get_ckpt(), f"{configs.root}/last.pth")
+        torch.save(eval_simclr.get_ckpt(), f"{configs.root}/last.pth")
         mlflow.pytorch.log_model(
             eval_simclr.get_model(), "model", pip_requirements="requirements.txt"
         )
