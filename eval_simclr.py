@@ -34,7 +34,7 @@ def worker(rank, world_size, configs):
 
     # prepare the dataloader
     train_dataloader, test_dataloader = utils.prepare_dataloaders(
-        rank, world_size, configs, include_ood_dataloader=False
+        rank, world_size, configs
     )
 
     # set up model

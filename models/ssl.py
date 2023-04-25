@@ -7,14 +7,14 @@ import numpy as np
 import scipy
 import torch
 import torch.nn.functional as F
-from torch import Tensor, nn
+from torch import nn
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm
 
 import utils
 
-from .encoder import EncodeProject, TwoHeadedEncoder
+from .encoder import EncodeProject
 from .trainernet import Trainer
 
 
@@ -22,7 +22,7 @@ class SimCLR(Trainer):
     def __init__(self, configs) -> None:
         super().__init__(configs)
         self.model = EncodeProject(backbone=configs.arch)
-        
+
         # self.reset_parameters()
         self.set_up_optimizers()
         self.set_up_loss()
@@ -54,7 +54,6 @@ class SimCLR(Trainer):
         )
 
     def step(self, value, target):
-
         pred = self.model(value)
         loss = self.loss(pred)
 
@@ -116,122 +115,6 @@ class SimCLR(Trainer):
         return {"val_loss": test_loss / (len(dataloader) / len(self.configs.gpus))}
 
 
-class SimReg(Trainer):
-    def __init__(self, configs) -> None:
-        super().__init__(configs)
-        self.model = TwoHeadedEncoder(
-            backbone=configs.arch, n_classes=(16 if configs.dataset == "nfs" else 10)
-        )
-
-        self.regloss = None
-        self.evalloss = None
-
-        # self.reset_parameters()
-        self.set_up_optimizers()
-        self.set_up_loss()
-
-    def reset_parameters(self):
-        def conv2d_weight_truncated_normal_init(p):
-            fan_in = p.shape[1]
-            stddev = np.sqrt(1.0 / fan_in) / 0.87962566103423978
-            r = scipy.stats.truncnorm.rvs(-2, 2, loc=0, scale=1.0, size=p.shape)
-            r = stddev * r
-            with torch.no_grad():
-                p.copy_(torch.FloatTensor(r))
-
-        def linear_normal_init(p):
-            with torch.no_grad():
-                p.normal_(std=0.01)
-
-        for m in self.model.modules():
-            if isinstance(m, torch.nn.Conv2d):
-                conv2d_weight_truncated_normal_init(m.weight)
-            elif isinstance(m, torch.nn.Linear):
-                linear_normal_init(m.weight)
-
-    def set_up_loss(self):
-        self.regloss = utils.NTXent(
-            tau=self.configs.tau,
-            multiplier=int(self.configs.multiplier),
-            distributed=(self.mode == "ddp"),
-        )
-        self.evalloss = nn.CrossEntropyLoss()
-
-    def step(self, value, target):
-
-        projection, prediction = self.model(value)
-        loss_proj = self.regloss(projection)
-        loss_pred = self.evalloss(prediction, target)
-
-        loss = (
-            self.configs.ntxent_loss_weight * loss_proj
-            + self.configs.ce_loss_weight * loss_pred
-        )
-
-        return (prediction, loss)
-
-    def train_epoch(self, dataloader) -> dict:
-        self.train()
-
-        if isinstance(dataloader.sampler, DistributedSampler):
-            dataloader.sampler.set_epoch(self.epoch)
-
-        loader = iter(dataloader)
-
-        train_loss, correct = 0, 0
-        data_time, iter_time = 0.0, 0.0
-        start_time = time.perf_counter()
-        for _, (value, target) in enumerate(loader):
-            value, target = value.to(self.device), target.to(self.device)
-            data_time += time.perf_counter() - start_time
-
-            # do training step
-            pred, loss = self.train_step(value, target)
-            iter_time += time.perf_counter() - start_time
-
-            # get loss
-            train_loss += loss.item()
-            # get accuracy
-            pred = torch.argmax(F.softmax(pred, dim=1), dim=1)
-            correct += pred.eq(target.view_as(pred)).sum().item()
-
-        self.epoch += 1
-        if self.scheduler:
-            self.scheduler.step()
-        return {
-            "train_loss": train_loss / (len(dataloader) / len(self.configs.gpus)),
-            "train_acc": correct
-            / (len(dataloader.dataset) * 2 / len(self.configs.gpus)),
-            "data_time": data_time / (len(dataloader) / len(self.configs.gpus)),
-            "iter_time": iter_time / (len(dataloader) / len(self.configs.gpus)),
-        }
-
-    def test_epoch(self, dataloader) -> list:
-        self.eval()
-
-        loader = iter(dataloader)
-
-        test_loss, correct = 0, 0
-        with torch.no_grad():
-            for _, (value, target) in enumerate(loader):
-                value, target = value.to(self.device), target.to(self.device)
-
-                # do testing step
-                pred, loss = self.test_step(value, target)
-
-                # get loss
-                test_loss += loss.item()
-
-                # get accuracy
-                pred = torch.argmax(F.softmax(pred, dim=1), dim=1)
-                correct += pred.eq(target.view_as(pred)).sum().item()
-
-        return {
-            "val_loss": test_loss / (len(dataloader) / len(self.configs.gpus)),
-            "val_acc": correct / (len(dataloader.dataset) * 2 / len(self.configs.gpus)),
-        }
-
-
 class EvalSimCLR(Trainer):
     def __init__(self, configs) -> None:
         super().__init__(configs)
@@ -283,7 +166,6 @@ class EvalSimCLR(Trainer):
             param.requires_grad = False
 
     def unfreeze_encoder(self) -> None:
-        # self.encoder.train()
         for param in self.encoder.parameters():
             param.requires_grad = True
 
@@ -297,7 +179,6 @@ class EvalSimCLR(Trainer):
 
     def train(self) -> None:
         self.model.train()
-        # self.encoder.train()
 
     def to(self, device):
         super().to(device)
@@ -331,8 +212,6 @@ class EvalSimCLR(Trainer):
 
         encodings = torch.stack(encodings)
         labels = torch.stack(labels)
-        # print(f"encodings:{encodings.shape}")
-        # print(f"labels:{labels.shape}")
 
         dataset = torch.utils.data.TensorDataset(
             torch.FloatTensor(encodings),
@@ -364,15 +243,6 @@ class EvalSimCLR(Trainer):
             else:
                 model_dict = model_state_dict
         self.encoder.load_state_dict(model_dict)
-
-    def ood_metric(self, values: Tensor, train: bool = False):
-        if train:
-            self.mean_train_var.average_in(value=torch.var(values))
-            return
-        else:
-            var = torch.var(values)
-            # return self.mean_train_var.mean - var
-            return var.item()
 
     def train_epoch(self, dataloader) -> dict:
         self.train()
