@@ -66,12 +66,6 @@ def prepare_dataloaders(rank: int, world_size: int, configs):
                 transform=transform,
             )
 
-            ood_dataset = datasets.SVHN(
-                configs.dataset_location,
-                download=False,
-                transform=transform,
-            )
-
         case "nfs":
             image_size = 256
             train_transform = transforms.Compose(

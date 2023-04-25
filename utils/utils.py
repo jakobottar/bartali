@@ -59,6 +59,17 @@ def parse_config_file(filename: str):
     return configs
 
 
+def parse_config_file_and_overrule(filename: str, args):
+    """if command line args are used, they will overrule the config file"""
+    configs = parse_config_file(filename)
+
+    for key, val in vars(args).items():
+        if val:
+            setattr(configs, key, val)
+
+    return configs
+
+
 # TODO: cleaner way of doing this?
 def roll_objects(objects: list, method="mean"):
     rolled = dict()

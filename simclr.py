@@ -91,9 +91,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "-c", "--config", type=str, default=None, help="config file location"
     )
+    parser.add_argument("--name", type=str, default=None)
+    parser.add_argument("--chkpt-file", type=str, default=None)
+    parser.add_argument("--drop-classes", type=str, default=None, nargs="+")
     args, _ = parser.parse_known_args()
-
-    configs = utils.parse_config_file(args.config)
+    configs = utils.parse_config_file_and_overrule(args.config, args)
 
     if configs.seed != -1:
         random.seed(configs.seed)
