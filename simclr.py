@@ -11,9 +11,9 @@ import time
 import mlflow
 import namegenerator
 import torch
-import torch.backends.cudnn as cudnn
 import torch.distributed as dist
 import torch.multiprocessing as mp
+from torch.backends import cudnn
 
 import models
 import utils
