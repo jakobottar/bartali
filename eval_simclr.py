@@ -88,6 +88,7 @@ def worker(rank, world_size, configs):
                 cm_disp = eval_simclr.create_confusion_matrix(test_dataloader)
                 cm_disp.plot(xticks_rotation="vertical", colorbar=False)
                 plt.savefig(f"{configs.root}/confusion.png")
+                plt.close()
 
                 torch.save(eval_simclr.get_ckpt(), f"{configs.root}/best.pth")
             print(f"{time.time() - start_time:.2f} sec")

@@ -67,8 +67,9 @@ def prepare_dataloaders(rank: int, world_size: int, configs):
             )
 
         case "nfs":
+            # Note: these strong transforms are needed at test time for good accuracy
             image_size = 256
-            train_transform = transforms.Compose(
+            transform = transforms.Compose(
                 [
                     transforms.RandomHorizontalFlip(),
                     transforms.RandomVerticalFlip(),
@@ -79,19 +80,10 @@ def prepare_dataloaders(rank: int, world_size: int, configs):
                 ]
             )
 
-            val_transform = transforms.Compose(
-                [
-                    transforms.CenterCrop(image_size),
-                    transforms.ToTensor(),
-                    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
-                ]
-            )
-
-            # OOD_CLASSES = ["UO3AUC", "U3O8MDU"]
             train_dataset = MagImageDataset(
                 configs.dataset_location,
                 split="train",
-                transform=train_transform,
+                transform=transform,
                 get_all_mag=False,
                 ood_classes=configs.drop_classes,
                 fold=configs.fold_num,
@@ -100,7 +92,7 @@ def prepare_dataloaders(rank: int, world_size: int, configs):
             test_dataset = MagImageDataset(
                 configs.dataset_location,
                 split="test",
-                transform=val_transform,
+                transform=transform,
                 get_all_mag=configs.multi_mag_majority_vote,
                 fold=configs.fold_num,
             )
