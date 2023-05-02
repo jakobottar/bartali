@@ -7,6 +7,7 @@ import numpy as np
 import scipy
 import torch
 import torch.nn.functional as F
+from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix
 from torch import nn
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
@@ -285,6 +286,7 @@ class EvalSimCLR(Trainer):
         iter_test_loader = iter(test_loader)
 
         test_loss, correct = 0, 0
+        pred_classes, correct_classes = [], []
         with torch.no_grad():
             if self.configs.dataset == "nfs":
                 # process test dataset
@@ -307,6 +309,10 @@ class EvalSimCLR(Trainer):
                     preds = torch.mode(preds, dim=0).values
                     correct += preds.eq(target.view_as(preds)).sum().item()
 
+                    # gather preds and targets for confusion matrix
+                    pred_classes.extend(preds.cpu().numpy())
+                    correct_classes.extend(target.cpu().numpy())
+
             else:
                 raise NotImplementedError
 
@@ -314,3 +320,33 @@ class EvalSimCLR(Trainer):
             "val_loss": test_loss / (len(test_loader) / len(self.configs.gpus)),
             "val_acc": correct / (len(test_loader.dataset) / len(self.configs.gpus)),
         }
+
+    def create_confusion_matrix(self, loader) -> ConfusionMatrixDisplay:
+        self.eval()
+
+        iter_loader = iter(loader)
+
+        pred_classes, correct_classes = [], []
+        with torch.no_grad():
+            for values, target in iter_loader:
+                preds = torch.zeros(
+                    (len(values), target.shape[0]), device=self.device
+                )  # space for predicted values
+                for i, value in enumerate(values):
+                    value, target = value.to(self.device), target.to(self.device)
+
+                    # do test step
+                    pred, _ = self.test_step(value, target)
+
+                    # get prediction
+                    preds[i] = torch.argmax(F.softmax(pred, dim=1), dim=1)
+
+                # majority vote
+                preds = torch.mode(preds, dim=0).values
+
+                # gather preds and targets for confusion matrix
+                pred_classes.extend(preds.cpu().numpy())
+                correct_classes.extend(target.cpu().numpy())
+
+        confusion = confusion_matrix(pred_classes, correct_classes, normalize="true")
+        return ConfusionMatrixDisplay(confusion, display_labels=utils.ROUTES)

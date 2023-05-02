@@ -8,6 +8,7 @@ import shutil
 import socket
 import time
 
+import matplotlib.pyplot as plt
 import mlflow
 import namegenerator
 import torch
@@ -83,11 +84,17 @@ def worker(rank, world_size, configs):
                 "learning_rate", eval_simclr.scheduler.get_last_lr()[0], step=epoch
             )
             if metrics["val_loss"] > best_metric:
+                # TODO: handle cm across multiple threads
+                cm_disp = eval_simclr.create_confusion_matrix(test_dataloader)
+                cm_disp.plot(xticks_rotation="vertical", colorbar=False)
+                plt.savefig(f"{configs.root}/confusion.png")
+                plt.close()
+
                 torch.save(eval_simclr.get_ckpt(), f"{configs.root}/best.pth")
             print(f"{time.time() - start_time:.2f} sec")
 
     if rank == 0:
-        # torch.save(eval_simclr.get_ckpt(), f"{configs.root}/last.pth")
+        torch.save(eval_simclr.get_ckpt(), f"{configs.root}/last.pth")
         mlflow.pytorch.log_model(
             eval_simclr.get_model(), "model", pip_requirements="requirements.txt"
         )
@@ -104,6 +111,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-c", "--config", type=str, default=None, help="config file location"
     )
+    parser.add_argument("-e", "--epochs", type=int, default=None)
     parser.add_argument("--name", type=str, default=None)
     parser.add_argument("--chkpt-file", type=str, default=None)
     parser.add_argument("--drop-classes", type=str, default=None, nargs="+")
