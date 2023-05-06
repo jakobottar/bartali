@@ -16,6 +16,7 @@ from tqdm import tqdm
 import utils
 
 from .encoder import EncodeProject
+from .layers import OrthogonallyAttenuatedLinear
 from .trainernet import Trainer
 
 
