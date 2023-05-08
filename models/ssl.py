@@ -139,21 +139,30 @@ class EvalSimCLR(Trainer):
                 )
 
         # build a non-linear classification head
-        model = [
-            ("fc1", nn.Linear(self.encoder.encoder_dim, self.encoder.encoder_dim)),
-            ("relu1", nn.ReLU()),
-            ("fc2", nn.Linear(self.encoder.encoder_dim, n_classes)),
-        ]
+        if configs.mode == "standard":
+            model = [
+                ("bn", nn.BatchNorm1d(self.encoder.encoder_dim, affine=False)),
+                ("fc1", nn.Linear(self.encoder.encoder_dim, self.encoder.encoder_dim)),
+                ("relu1", nn.ReLU()),
+                ("fc2", nn.Linear(self.encoder.encoder_dim, n_classes)),
+            ]
+
+        elif configs.mode == "oa":
+            model = [
+                ("bn", nn.BatchNorm1d(self.encoder.encoder_dim, affine=False)),
+                (
+                    "fc1",
+                    OrthogonallyAttenuatedLinear(
+                        self.encoder.encoder_dim,
+                        self.encoder.encoder_dim,
+                        sigma_scalar=2.0,
+                    ),
+                ),
+                ("relu1", nn.ReLU()),
+                ("fc2", nn.Linear(self.encoder.encoder_dim, n_classes)),
+            ]
 
         model = nn.Sequential(OrderedDict(model)).to(self.device)
-
-        def linear_normal_init(p):
-            with torch.no_grad():
-                p.normal_(std=0.01)
-
-        for m in self.model.modules():
-            if isinstance(m, torch.nn.Linear):
-                linear_normal_init(m.weight)
 
         self.model = model
 

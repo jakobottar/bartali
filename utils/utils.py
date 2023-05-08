@@ -24,13 +24,9 @@ class ConfigStruct:
     lr_gamma: float = 0.99  # learning rate scheduler parameter
     weight_decay: float = 1e-9  # float, optimizer weight decay
     epochs: int = 2  # int, num training epochs
-    frozen_epochs: int = 20  # num frozen epochs, for tuning
 
     tau: float = 1.0  # float, NTXent parameter
     multiplier: int = 1  # int, NTXent parameter, set to 1 when not using simclr
-
-    ce_loss_weight: float = 1  # float, supervised loss weight, for simreg
-    ntxent_loss_weight: float = 1  # float, self-supervised loss weight, for simreg
 
     find_unused_parameters: bool = False  # should DDP find unused parameters
     multi_mag_majority_vote: bool = (
@@ -42,7 +38,7 @@ class ConfigStruct:
     gpus: str | tuple = (0,)  # str or tuple, gpu(s) to use
     port: str = "1234"  # DDP port
     root: str = "runs"  # root of folder to save runs in
-    mode: str = "frozen"  # model training mode, for simclr eval
+    mode: str = "standard"  # oa or standard, for simclr eval layers
 
     as_dict = asdict
 
