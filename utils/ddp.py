@@ -5,6 +5,7 @@ import torch
 import torch.distributed as dist
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
+from torch.utils.data.sampler import BatchSampler
 from torchvision import datasets, transforms
 
 from .data import MagImageDataset, MultiplyBatchSampler
@@ -36,7 +37,9 @@ class Clamp(object):
         return torch.clamp(x, 0, 1)
 
 
-def prepare_dataloaders(rank: int, world_size: int, configs):
+def prepare_dataloaders(
+    rank: int, world_size: int, configs, include_ood_dataloader: bool = False
+):
     match configs.dataset:
         case "cifar":
             transform = transforms.Compose(
@@ -97,6 +100,15 @@ def prepare_dataloaders(rank: int, world_size: int, configs):
                 fold=configs.fold_num,
             )
 
+            ood_dataset = MagImageDataset(
+                configs.dataset_location,
+                split="ood",
+                transform=transform,
+                get_all_mag=configs.multi_mag_majority_vote,
+                ood_classes=configs.drop_classes,
+                fold=configs.fold_num,
+            )
+
         case _:
             raise NotImplementedError(f"Cound not load dataset {configs.dataset}.")
 
@@ -126,5 +138,19 @@ def prepare_dataloaders(rank: int, world_size: int, configs):
         num_workers=configs.workers,
         batch_sampler=batch_sampler(test_sampler, configs.batch_size, drop_last=False),
     )
+
+    if include_ood_dataloader:
+        ood_sampler = DistributedSampler(ood_dataset)
+
+        ood_dataloader = DataLoader(
+            ood_dataset,
+            pin_memory=True,
+            num_workers=configs.workers,
+            batch_sampler=BatchSampler(
+                ood_sampler, configs.batch_size, drop_last=False
+            ),
+        )
+
+        return train_dataloader, test_dataloader, ood_dataloader
 
     return train_dataloader, test_dataloader

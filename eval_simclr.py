@@ -34,8 +34,8 @@ def worker(rank, world_size, configs):
     torch.cuda.set_device(configs.gpus[rank])
 
     # prepare the dataloader
-    train_dataloader, test_dataloader = utils.prepare_dataloaders(
-        rank, world_size, configs
+    train_dataloader, test_dataloader, _ = utils.prepare_dataloaders(
+        rank, world_size, configs, include_ood_dataloader=True
     )
 
     # set up model
