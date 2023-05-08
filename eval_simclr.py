@@ -34,7 +34,7 @@ def worker(rank, world_size, configs):
     torch.cuda.set_device(configs.gpus[rank])
 
     # prepare the dataloader
-    train_dataloader, test_dataloader, _ = utils.prepare_dataloaders(
+    train_dataloader, test_dataloader, ood_dataloader = utils.prepare_dataloaders(
         rank, world_size, configs, include_ood_dataloader=True
     )
 
@@ -60,6 +60,7 @@ def worker(rank, world_size, configs):
     data = {
         "train_stats": None,
         "test_stats": None,
+        "ood_stats": None,
     }
     outputs = [None for _ in range(world_size)]
 
@@ -74,6 +75,8 @@ def worker(rank, world_size, configs):
 
         data["train_stats"] = eval_simclr.train_epoch(train_dataloader)
         data["test_stats"] = eval_simclr.test_epoch(test_dataloader)
+        if len(configs.drop_classes) > 0:
+            data["ood_stats"] = eval_simclr.ood_epoch(test_dataloader, ood_dataloader)
 
         dist.all_gather_object(outputs, data)
 
@@ -114,6 +117,7 @@ if __name__ == "__main__":
     parser.add_argument("-e", "--epochs", type=int, default=None)
     parser.add_argument("--name", type=str, default=None)
     parser.add_argument("--chkpt-file", type=str, default=None)
+    parser.add_argument("--mode", type=str, default=None)
     parser.add_argument("--drop-classes", type=str, default=None, nargs="+")
     args, _ = parser.parse_known_args()
     configs = utils.parse_config_file_and_overrule(args.config, args)

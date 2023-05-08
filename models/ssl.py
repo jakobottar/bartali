@@ -11,6 +11,7 @@ from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix
 from torch import nn
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
+from torchmetrics.classification import BinaryAUROC
 from tqdm import tqdm
 
 import utils
@@ -329,6 +330,48 @@ class EvalSimCLR(Trainer):
         return {
             "val_loss": test_loss / (len(test_loader) / len(self.configs.gpus)),
             "val_acc": correct / (len(test_loader.dataset) / len(self.configs.gpus)),
+        }
+
+    def __ood_predict(self, loader):
+        self.eval()
+
+        max_softmax = torch.empty(0)
+        with torch.no_grad():
+            for values, target in loader:
+                # space for predicted values
+                # TODO: automatically set this shape
+                logits = torch.zeros((values[0].shape[0], 16), device=self.device)
+
+                for value in values:
+                    value = value.to(self.device)
+                    target = torch.zeros_like(target, device=self.device)
+
+                    # do test step
+                    pred, _ = self.test_step(value, target)
+
+                    # get prediction
+                    logits += F.softmax(pred, dim=1) / len(values)
+
+                logits = torch.max(logits, dim=1)
+                max_softmax = torch.cat((max_softmax, logits.values.cpu()))
+
+        return max_softmax
+
+    def ood_epoch(self, test_loader, ood_loader) -> dict:
+        metric = BinaryAUROC(thresholds=None)
+
+        # evaluate test data (in distribution)
+        in_ms = self.__ood_predict(test_loader)
+        # evaluate ood data (out of distribution)
+        out_ms = self.__ood_predict(ood_loader)
+
+        # compute AUROC
+        gt = torch.cat((torch.ones_like(in_ms), torch.zeros_like(out_ms)))
+        pred = torch.cat((in_ms, out_ms))
+        auroc = metric(pred, gt)
+
+        return {
+            "auroc": auroc,
         }
 
     def create_confusion_matrix(self, loader) -> ConfusionMatrixDisplay:
