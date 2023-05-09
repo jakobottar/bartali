@@ -200,6 +200,7 @@ class EvalSimCLR(Trainer):
     def to_ddp(self, rank):
         super().to_ddp(rank)
         self.encoder.to(self.device)
+        self.set_up_loss()
         return self
 
     def encode_step(self, value):
@@ -243,7 +244,17 @@ class EvalSimCLR(Trainer):
         return dataloader
 
     def set_up_loss(self) -> None:
-        self.loss = nn.CrossEntropyLoss()
+        if self.configs.mode == "oa":
+
+            def sigma_pen_loss(input, target):
+                return F.cross_entropy(input, target) + 0.5 * torch.mean(
+                    torch.square(self.model.module.fc1.sigma)
+                )
+
+            self.loss = sigma_pen_loss
+
+        else:
+            self.loss = nn.CrossEntropyLoss()
 
     def load_encoder_ckpt(self, model_state_dict) -> None:
         # TODO: what if we load a non-ddp model?
