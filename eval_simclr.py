@@ -69,9 +69,8 @@ def worker(rank, world_size, configs):
             print(f"epoch {epoch} of {configs.epochs} ", end="")
             start_time = time.time()
 
-        if configs.mode == "tune" and epoch > configs.frozen_epochs:
-            eval_simclr.unfreeze_encoder()
-            configs.mode = "tuning"
+        if epoch == 10:
+            eval_simclr.set_up_loss(loss_beta=1.0)
 
         data["train_stats"] = eval_simclr.train_epoch(train_dataloader)
         data["test_stats"] = eval_simclr.test_epoch(test_dataloader)

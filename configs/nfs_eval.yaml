@@ -3,7 +3,7 @@ name: random
 mode: oa
 chkpt_file: ./model.pth
 dataset: nfs
-dataset_location: /nvmescratch/jakobj/multimag
+dataset_location: /scratch2/jakobj/multimag
 batch_size: 64
 workers: 2
 epochs: 20
@@ -14,4 +14,4 @@ weight_decay: 0
 optimizer: adam
 multi_mag_majority_vote: True
 drop_classes: []
-gpus: [0]
+gpus: [1]

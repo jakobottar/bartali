@@ -156,7 +156,7 @@ class EvalSimCLR(Trainer):
                     OrthogonallyAttenuatedLinear(
                         self.encoder.encoder_dim,
                         self.encoder.encoder_dim,
-                        sigma_scalar=2.0,
+                        sigma_scalar=3.0,
                     ),
                 ),
                 ("relu1", nn.ReLU()),
@@ -243,11 +243,11 @@ class EvalSimCLR(Trainer):
 
         return dataloader
 
-    def set_up_loss(self) -> None:
+    def set_up_loss(self, loss_beta: float = 0.5) -> None:
         if self.configs.mode == "oa":
 
             def sigma_pen_loss(input, target):
-                return F.cross_entropy(input, target) + 0.5 * torch.mean(
+                return F.cross_entropy(input, target) + loss_beta * torch.mean(
                     torch.square(self.model.module.fc1.sigma)
                 )
 
