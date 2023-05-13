@@ -94,7 +94,7 @@ def write_to_files(files, filename, column_names):
 if __name__ == "__main__":
     for fold_num in range(0, 5):
         create_trainval_file(
-            "/nvmescratch/jakobj/multimag",
+            "/scratch_nvme/jakobj/multimag",
             fold_num,
             ["10000x", "25000x", "50000x", "100000x"],
             ".",
