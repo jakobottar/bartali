@@ -90,13 +90,12 @@ def prepare_dataloaders(rank: int, world_size: int, configs):
 
             transform = transforms.Compose(transform)
 
-            print(transform)
-
             train_dataset = MagImageDataset(
                 configs.dataset_location,
                 split="train",
                 transform=transform,
                 get_all_mag=False,
+                no_mag=("magnification" not in configs.transforms),
                 ood_classes=configs.drop_classes,
                 fold=configs.fold_num,
             )
@@ -106,6 +105,7 @@ def prepare_dataloaders(rank: int, world_size: int, configs):
                 split="test",
                 transform=transform,
                 get_all_mag=configs.multi_mag_majority_vote,
+                no_mag=("magnification" not in configs.transforms),
                 fold=configs.fold_num,
             )
 

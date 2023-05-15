@@ -291,6 +291,9 @@ class EvalSimCLR(Trainer):
             if self.configs.dataset == "nfs":
                 # process test dataset
                 for values, target in iter_test_loader:
+                    if not isinstance(values, list):
+                        values = [values]
+
                     preds = torch.zeros(
                         (len(values), target.shape[0]), device=self.device
                     )  # space for predicted values
@@ -329,6 +332,9 @@ class EvalSimCLR(Trainer):
         pred_classes, correct_classes = [], []
         with torch.no_grad():
             for values, target in iter_loader:
+                if not isinstance(values, list):
+                        values = [values]
+
                 preds = torch.zeros(
                     (len(values), target.shape[0]), device=self.device
                 )  # space for predicted values
