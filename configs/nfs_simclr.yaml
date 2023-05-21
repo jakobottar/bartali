@@ -1,7 +1,7 @@
 arch: resnet50
 name: random
 dataset: nfs
-dataset_location: /nvmescratch/jakobj/multimag
+dataset_location: /scratch_nvme/jakobj/multimag
 batch_size: 400
 workers: 2
 epochs: 1000
@@ -11,6 +11,6 @@ weight_decay: 1.0e-6
 optimizer: lars
 tau: 0.5
 multiplier: 2
-gpus: [1, 2]
+gpus: [0, 1]
 drop_classes: []
-# drop_classes: ["UO3AUC", "UO3SDU", "U3O8AUC", "UO2SDU"]
+transforms: [horiz_flip, vert_flip, color_jitter, random_crop, magnification, normalize]

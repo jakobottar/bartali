@@ -2,7 +2,7 @@ arch: resnet50
 name: random
 chkpt_file: ./model.pth
 dataset: nfs
-dataset_location: /nvmescratch/jakobj/multimag
+dataset_location: /scratch_nvme/jakobj/multimag
 batch_size: 64
 workers: 2
 epochs: 50
@@ -13,4 +13,5 @@ weight_decay: 0
 optimizer: adam
 multi_mag_majority_vote: True
 drop_classes: []
+transforms: [center_crop, normalize, magnification]
 gpus: [0]
