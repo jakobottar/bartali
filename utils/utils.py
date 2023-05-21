@@ -37,6 +37,13 @@ class ConfigStruct:
         False  # should eval use majority vote on all magnifications?
     )
     drop_classes: tuple = ()
+    transforms: tuple = (
+        "magnification",
+        "horiz_flip",
+        "vert_flip",
+        "random_resized_crop",
+        "normalize",
+    )
 
     seed: int = -1  # random seed, -1 for random
     gpus: str | tuple = (0,)  # str or tuple, gpu(s) to use

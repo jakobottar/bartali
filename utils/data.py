@@ -45,6 +45,7 @@ class MagImageDataset(Dataset):
         split: str = "train",
         transform=None,
         get_all_mag: bool = False,
+        no_mag: bool = False,
         ood_classes=[],
         fold=0,
     ) -> None:
@@ -67,20 +68,41 @@ class MagImageDataset(Dataset):
                 )
         self.df = self.df.reset_index()
 
+        # ignore magnification, concat dataframe
+        self.no_mag = no_mag
+        if no_mag:
+            if get_all_mag:
+                print("Warning: `get_all_mag` is overridden by `no_mag`!")
+
+            temp_df = pd.DataFrame()
+            for mag in MAGS:
+                new_df = self.df[[mag, "label"]].rename({mag: "filename"}, axis=1)
+                temp_df = pd.concat([temp_df, new_df], ignore_index=True)
+
+            self.df = temp_df
+
         self.split = split
         self.transform = transform
         self.all_mag = get_all_mag
         self.root = os.path.join(root)
 
     def __len__(self):
-        return len(self.df) - 2
+        return len(self.df)
 
     def __getitem__(self, idx):
         row = self.df.loc[idx].to_dict()
         row["label_int"] = int(ROUTES.index(row["label"]))
 
+        # ignores magnification
+        if self.no_mag:
+            image_path = os.path.join(self.root, row["filename"])
+            image = Image.open(image_path).convert("RGB")
+
+            if self.transform:
+                image = self.transform(image)
+
         # get all magnifications
-        if self.all_mag:
+        elif self.all_mag:
             image = []
             for mag in range(4):
                 image_path = os.path.join(self.root, row[MAGS[mag]])
