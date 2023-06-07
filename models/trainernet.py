@@ -30,7 +30,7 @@ class Trainer:
 
     def to(self, device):
         if self.mode == "ddp":
-            raise Exception("Model running in DistributedDataParallel mode!")
+            raise RuntimeError("Model running in DistributedDataParallel mode!")
 
         self.device = device
         self.model.to(device)
@@ -137,14 +137,12 @@ class Trainer:
         raise NotImplementedError("'set_up_loss' not reimplemented in child class.")
 
     def step(self, value, target) -> Tuple[Tensor, Tensor]:
-
         pred = self.model(value)
         loss = self.loss(pred, target)
 
         return (pred, loss)
 
     def train_step(self, value, target) -> Tuple[Tensor, Tensor]:
-
         pred, loss = self.step(value, target)
 
         self.optimizer.zero_grad()

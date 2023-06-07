@@ -159,8 +159,6 @@ class EvalSimCLR(Trainer):
         self.set_up_optimizers()
         self.set_up_loss()
 
-        self.mean_train_var = utils.RunningAverage()
-
     def freeze_encoder(self) -> None:
         self.encoder.eval()
         for param in self.encoder.parameters():
@@ -333,7 +331,7 @@ class EvalSimCLR(Trainer):
         with torch.no_grad():
             for values, target in iter_loader:
                 if not isinstance(values, list):
-                        values = [values]
+                    values = [values]
 
                 preds = torch.zeros(
                     (len(values), target.shape[0]), device=self.device

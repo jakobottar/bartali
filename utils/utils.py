@@ -1,8 +1,6 @@
 from dataclasses import asdict, dataclass
 
-import torch
 import yaml
-from torch import Tensor
 
 
 @dataclass
