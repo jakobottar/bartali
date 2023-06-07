@@ -6,40 +6,6 @@ import torch.nn.functional as F
 from torch import nn
 
 
-def gather(z):
-    gather_z = [torch.zeros_like(z) for _ in range(torch.distributed.get_world_size())]
-    gather_z = diffdist.functional.all_gather(gather_z, z)
-    gather_z = torch.cat(gather_z)
-
-    return gather_z
-
-
-def accuracy(logits, labels, k):
-    topk = torch.sort(logits.topk(k, dim=1)[1], 1)[0]
-    labels = torch.sort(labels, 1)[0]
-    acc = (topk == labels).all(1).float()
-    return acc
-
-
-def mean_cumulative_gain(logits, labels, k):
-    topk = torch.sort(logits.topk(k, dim=1)[1], 1)[0]
-    labels = torch.sort(labels, 1)[0]
-    mcg = (topk == labels).float().mean(1)
-    return mcg
-
-
-def mean_average_precision(logits, labels, k):
-    # TODO: not the fastest solution but looks fine
-    argsort = torch.argsort(logits, dim=1, descending=True)
-    labels_to_sorted_idx = (
-        torch.sort(torch.gather(torch.argsort(argsort, dim=1), 1, labels), dim=1)[0] + 1
-    )
-    precision = (
-        1 + torch.arange(k, device=logits.device).float()
-    ) / labels_to_sorted_idx
-    return precision.sum(1) / k
-
-
 class NTXent(nn.Module):
     """
     Contrastive loss with distributed data parallel support
@@ -93,18 +59,5 @@ class NTXent(nn.Module):
             / (m - 1)
             / self.norm
         )
-
-        # zero the probability of identical pairs
-        # pred = logprob.data.clone()
-        # pred[np.arange(n), np.arange(n)] = -self.LARGE_NUMBER
-        # acc = accuracy(pred, torch.LongTensor(labels.reshape(n, m-1)).to(logprob.device), m-1)
-
-        # if get_map:
-        #     _map = mean_average_precision(
-        #         pred,
-        #         torch.LongTensor(labels.reshape(n, m - 1)).to(logprob.device),
-        #         m - 1,
-        #     )
-        #     return loss, _map
 
         return loss

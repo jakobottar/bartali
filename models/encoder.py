@@ -1,7 +1,6 @@
 from collections import OrderedDict
 
 import torch
-import torch.nn as nn
 from torch import nn
 from torchvision import models
 
@@ -49,48 +48,3 @@ class EncodeProject(nn.Module):
         if out == "h":
             return h
         return self.projection(h)
-
-
-class TwoHeadedEncoder(nn.Module):
-    def __init__(self, backbone, n_classes):
-        super().__init__()
-
-        match backbone:
-            case "resnet18" | "18":
-                self.convnet = models.resnet18(weights="DEFAULT")
-                self.encoder_dim = 512
-            case "resnet50" | "50":
-                self.convnet = models.resnet50(weights="DEFAULT")
-                self.encoder_dim = 2048
-            case "resnet152" | "152":
-                self.convnet = models.resnet152(weights="DEFAULT")
-                self.encoder_dim = 2048
-            case _:
-                raise NotImplementedError(f"Cound not load model {backbone}.")
-
-        self.convnet = torch.nn.Sequential(*(list(self.convnet.children())[:-1]))
-
-        projection_layers = [
-            ("fc1", nn.Linear(self.encoder_dim, self.encoder_dim, bias=False)),
-            ("bn1", nn.BatchNorm1d(self.encoder_dim)),
-            ("relu1", nn.ReLU()),
-            ("fc2", nn.Linear(self.encoder_dim, 128, bias=False)),
-            ("bn2", BatchNorm1dNoBias(128)),
-        ]
-        self.projhead = nn.Sequential(OrderedDict(projection_layers))
-
-        eval_layers = [
-            ("fc1", nn.Linear(self.encoder_dim, self.encoder_dim)),
-            ("relu1", nn.ReLU()),
-            ("fc2", nn.Linear(self.encoder_dim, n_classes)),
-        ]
-        self.evalhead = nn.Sequential(OrderedDict(eval_layers))
-
-        self.flatten = nn.Flatten()
-
-    def forward(self, x):
-        x = self.convnet(x)
-        x = self.flatten(x)
-        p = self.projhead(x)
-        e = self.evalhead(x)
-        return p, e

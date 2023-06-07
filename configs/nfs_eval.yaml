@@ -12,6 +12,5 @@ lr: 0.001
 weight_decay: 0
 optimizer: adam
 multi_mag_majority_vote: True
-drop_classes: []
-transforms: [center_crop, normalize, magnification]
 gpus: [0]
+transforms: [random_crop, magnification, normalize]
