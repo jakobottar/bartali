@@ -94,17 +94,4 @@ class NTXent(nn.Module):
             / self.norm
         )
 
-        # zero the probability of identical pairs
-        # pred = logprob.data.clone()
-        # pred[np.arange(n), np.arange(n)] = -self.LARGE_NUMBER
-        # acc = accuracy(pred, torch.LongTensor(labels.reshape(n, m-1)).to(logprob.device), m-1)
-
-        # if get_map:
-        #     _map = mean_average_precision(
-        #         pred,
-        #         torch.LongTensor(labels.reshape(n, m - 1)).to(logprob.device),
-        #         m - 1,
-        #     )
-        #     return loss, _map
-
         return loss

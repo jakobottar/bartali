@@ -12,5 +12,4 @@ optimizer: lars
 tau: 0.5
 multiplier: 2
 gpus: [0, 1]
-drop_classes: []
-transforms: [horiz_flip, vert_flip, color_jitter, random_crop, magnification, normalize]
+transforms: [horiz_flip, vert_flip, random_crop, magnification, normalize]

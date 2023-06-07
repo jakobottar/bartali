@@ -7,6 +7,8 @@ from torch import Tensor
 
 @dataclass
 class ConfigStruct:
+    """struct to store config parameters"""
+
     arch: str = "resnet18"  # resnet18 or resnet50, backbone model architecture
     name: str = "random"  # run name
     chkpt_file: str = "none"  # checkpoint to resume from
@@ -55,7 +57,7 @@ class ConfigStruct:
 
 
 def parse_config_file(filename: str):
-    # load yaml config file
+    """load yaml config file"""
     with open(filename, "r", encoding="utf-8") as file:
         config_dict = yaml.safe_load(file)
 
@@ -79,6 +81,7 @@ def parse_config_file_and_overrule(filename: str, args):
 
 # TODO: cleaner way of doing this?
 def roll_objects(objects: list, method="mean"):
+    """combine objects from all_gather into one dict"""
     rolled = dict()
 
     for dev in objects:
@@ -93,52 +96,3 @@ def roll_objects(objects: list, method="mean"):
             rolled[key] /= len(objects)
 
     return rolled
-
-
-def variance(model_pred: Tensor, branch_preds: Tensor) -> Tensor:
-    """
-    Computes variance metric for uncertainty quantification.
-    Parameters
-    ----------
-    model_pred : `torch.Tensor`, voted or averaged prediction for ensemble model
-    branch_preds : `torch.Tensor`, predictions for each branch or run, should be of shape `E * N`
-    """
-
-    var = 0.0
-    for branch_pred in branch_preds:
-        var += torch.sum(branch_pred != model_pred)
-
-    return var / (branch_preds.shape[0] * branch_preds.shape[1])
-
-
-def entropy(logits, base="two"):
-    """compute entropy of logits"""
-    if base == "two" or base == 2:
-        # use nansum because 0 predictions give nan values (and log(0) = nan)
-        return -torch.nansum(logits * torch.log2(logits), dim=1)
-    elif base == "ten" or base == 10:
-        return -torch.nansum(logits * torch.log10(logits), dim=1)
-    elif base == "natural" or base == "e":
-        return -torch.nansum(logits * torch.log(logits), dim=1)
-    else:
-        raise NotImplementedError(f"No log found for base {base}")
-
-
-class RunningAverage:
-    def __init__(self) -> None:
-        self.iter = 0
-        self.mean = None
-
-    def average_in(self, value):
-        if value.shape != self.mean.shape:
-            raise ValueError(
-                "Incompatable sizes. Expected size {self.means.shape} but got {value.shape}."
-            )
-
-        ## first iter:
-        if self.iter == 0:
-            self.mean = value
-        else:
-            self.mean = self.mean + (value - self.mean) / self.iter
-
-        self.iter += 1
