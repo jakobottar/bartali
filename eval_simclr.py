@@ -86,8 +86,12 @@ def worker(rank, world_size, configs):
             if metrics["val_loss"] > best_metric:
                 # TODO: handle cm across multiple threads
                 cm_disp = eval_simclr.create_confusion_matrix(test_dataloader)
-                cm_disp.plot(xticks_rotation="vertical", colorbar=False)
-                plt.savefig(f"{configs.root}/confusion.png")
+                cm_disp.plot(xticks_rotation=90, colorbar=False, values_format=".0g")
+
+                fig = plt.gcf()
+                fig.set_size_inches(4.5, 4.5)
+                fig.tight_layout()
+                fig.savefig(f"{configs.root}/confusion.png")
                 plt.close()
 
                 torch.save(eval_simclr.get_ckpt(), f"{configs.root}/best.pth")

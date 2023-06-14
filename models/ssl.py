@@ -18,6 +18,21 @@ import utils
 from .encoder import EncodeProject
 from .trainernet import Trainer
 
+ROUTES = [
+    "ADU-U3O8",
+    "AUC-U3O8",
+    "UH-U3O8",
+    "SDU-U3O8",
+    "ADU-UO2",
+    "AUCd-UO2",
+    "AUCi-UO2",
+    "SDU-UO2",
+    "ADU-UO3",
+    "AUC-UO3",
+    "UHU-UO3",
+    "SDU-UO3",
+]
+
 
 class SimCLR(Trainer):
     def __init__(self, configs) -> None:
@@ -333,7 +348,7 @@ class EvalSimCLR(Trainer):
         with torch.no_grad():
             for values, target in iter_loader:
                 if not isinstance(values, list):
-                        values = [values]
+                    values = [values]
 
                 preds = torch.zeros(
                     (len(values), target.shape[0]), device=self.device
@@ -355,4 +370,4 @@ class EvalSimCLR(Trainer):
                 correct_classes.extend(target.cpu().numpy())
 
         confusion = confusion_matrix(pred_classes, correct_classes, normalize="true")
-        return ConfusionMatrixDisplay(confusion, display_labels=utils.ROUTES)
+        return ConfusionMatrixDisplay(confusion, display_labels=ROUTES)
