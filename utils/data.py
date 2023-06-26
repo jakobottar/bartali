@@ -4,8 +4,11 @@ data utils
 
 import os
 import random
+import shutil
 
+import numpy as np
 import pandas as pd
+import pyxis as px
 from PIL import Image
 from torch.utils.data import Dataset
 from torch.utils.data.sampler import BatchSampler, RandomSampler
@@ -25,7 +28,7 @@ ROUTES = [
     "UO3SDU",
 ]
 
-MAGS = ["10000x", "25000x", "50000x", "100000x"]
+VIEWS = ["10000x", "25000x", "50000x", "100000x"]
 
 
 class MultiplyBatchSampler(BatchSampler):
@@ -75,38 +78,74 @@ class MagImageDataset(Dataset):
                 print("Warning: `get_all_mag` is overridden by `no_mag`!")
 
             temp_df = pd.DataFrame()
-            for mag in MAGS:
+            for mag in VIEWS:
                 new_df = self.df[[mag, "label"]].rename({mag: "filename"}, axis=1)
                 temp_df = pd.concat([temp_df, new_df], ignore_index=True)
 
             self.df = temp_df
 
         self.split = split
+        self.fold = fold
         self.transform = transform
         self.all_mag = get_all_mag
+        self.ood_classes = ood_classes
         self.root = os.path.join(root)
+
+        self.db = px.Reader(self.__make_lmdb(), lock=False)
+
+    def __make_lmdb(self, force_regen=False):
+        dirpath = os.path.join(
+            self.root,
+            f"temp_{self.split}_{self.fold}_{'no_mag' if self.no_mag else 'mag'}_{'_'.join(self.ood_classes)}",
+        )
+        if os.path.isdir(dirpath):
+            if not force_regen:
+                return dirpath
+            shutil.rmtree(dirpath)
+        with px.Writer(
+            dirpath=dirpath,
+            map_size_limit=11000,
+        ) as db:
+            print("making LMDB...")
+            for _, row in self.df.iterrows():
+                db_row = {"label": np.array([row["label"]], dtype=str)}
+
+                images = []
+                for view in VIEWS:
+                    imagepath = os.path.join(self.root, row[view])
+                    image = np.array(Image.open(imagepath).convert("RGB"))
+                    # TODO: might need to reshape the image here
+                    images.append(image)
+
+                images = np.array([images])
+                db_row["views"] = images
+
+                # print(db_row["label"])
+                db.put_samples(db_row)
+
+            return db.dirpath
 
     def __len__(self):
         return len(self.df)
 
     def __getitem__(self, idx):
-        row = self.df.loc[idx].to_dict()
-        row["label_int"] = int(ROUTES.index(row["label"]))
+        sample = self.db.get_sample(idx)
+        target = int(ROUTES.index(sample["label"]))
 
         # ignores magnification
         if self.no_mag:
-            image_path = os.path.join(self.root, row["filename"])
-            image = Image.open(image_path).convert("RGB")
+            raise (NotImplementedError())
+            # image_path = os.path.join(self.root, row["filename"])
+            # image = Image.open(image_path).convert("RGB")
 
-            if self.transform:
-                image = self.transform(image)
+            # if self.transform:
+            #     image = self.transform(image)
 
         # get all magnifications
         elif self.all_mag:
             image = []
             for mag in range(4):
-                image_path = os.path.join(self.root, row[MAGS[mag]])
-                image_mag = Image.open(image_path).convert("RGB")
+                image_mag = Image.fromarray(sample["views"][mag])
 
                 if self.transform:
                     image_mag = self.transform(image_mag)
@@ -116,8 +155,7 @@ class MagImageDataset(Dataset):
         # get a random magnification
         else:
             rand_mag = random.randint(0, 3)
-            image_path = os.path.join(self.root, row[MAGS[rand_mag]])
-            image = Image.open(image_path).convert("RGB")
+            image = Image.fromarray(sample["views"][rand_mag])
 
             if self.transform:
                 image = self.transform(image)
@@ -125,55 +163,55 @@ class MagImageDataset(Dataset):
         if self.split == "ood":
             return image
 
-        return image, row["label_int"]
+        return image, target
 
 
-class OODDataset(Dataset):
-    def __init__(
-        self,
-        root: str,
-        transform=None,
-        get_all_mag: bool = False,
-        random_noise: bool = False,
-    ) -> None:
-        super().__init__()
-        self.df = pd.read_csv(f"{root}/ood.csv")
-        self.transform = transform
-        self.all_mag = get_all_mag
-        self.random_noise = random_noise
-        self.root = os.path.join(root)
+# class OODDataset(Dataset):
+#     def __init__(
+#         self,
+#         root: str,
+#         transform=None,
+#         get_all_mag: bool = False,
+#         random_noise: bool = False,
+#     ) -> None:
+#         super().__init__()
+#         self.df = pd.read_csv(f"{root}/ood.csv")
+#         self.transform = transform
+#         self.all_mag = get_all_mag
+#         self.random_noise = random_noise
+#         self.root = os.path.join(root)
 
-    def __len__(self):
-        return len(self.df)
+#     def __len__(self):
+#         return len(self.df)
 
-    def __getitem__(self, idx):
-        if self.random_noise:
-            pass
-        else:
-            files = self.df.iloc[idx].dropna().values
+#     def __getitem__(self, idx):
+#         if self.random_noise:
+#             pass
+#         else:
+#             files = self.df.iloc[idx].dropna().values
 
-            # get all magnifications
-            if self.all_mag:
-                image = []
-                for filepath in files:
-                    filepath = os.path.join(self.root, filepath)
-                    image_mag = Image.open(filepath).convert("RGB")
+#             # get all magnifications
+#             if self.all_mag:
+#                 image = []
+#                 for filepath in files:
+#                     filepath = os.path.join(self.root, filepath)
+#                     image_mag = Image.open(filepath).convert("RGB")
 
-                    if self.transform:
-                        image_mag = self.transform(image_mag)
+#                     if self.transform:
+#                         image_mag = self.transform(image_mag)
 
-                    image.append(image_mag)
+#                     image.append(image_mag)
 
-            # get a random magnification
-            else:
-                rand_mag = random.randint(0, len(files) - 1)
-                image_path = os.path.join(self.root, files[rand_mag])
-                image = Image.open(image_path).convert("RGB")
+#             # get a random magnification
+#             else:
+#                 rand_mag = random.randint(0, len(files) - 1)
+#                 image_path = os.path.join(self.root, files[rand_mag])
+#                 image = Image.open(image_path).convert("RGB")
 
-                if self.transform:
-                    image = self.transform(image)
+#                 if self.transform:
+#                     image = self.transform(image)
 
-        return image
+#         return image
 
 
 if __name__ == "__main__":
@@ -192,10 +230,10 @@ if __name__ == "__main__":
     )
 
     dataset = MagImageDataset(
-        "/nvmescratch/jakobj/multimag",
+        "/scratch_nvme/jakobj/multimag",
         split="ood",
         transform=transform,
-        get_all_mag=True,
+        get_all_mag=False,
         ood_classes=["UO3AUC", "U3O8MDU"],
     )
 
@@ -205,7 +243,8 @@ if __name__ == "__main__":
         dataset,
         pin_memory=True,
         num_workers=2,
-        batch_sampler=BatchSampler(sampler, batch_size=64, drop_last=False),
+        batch_sampler=BatchSampler(sampler, batch_size=2, drop_last=False),
     )
 
     print(len(dataset))
+    print(next(iter(dataloader)))
