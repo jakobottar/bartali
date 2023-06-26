@@ -91,7 +91,7 @@ def worker(rank, world_size, configs):
                 fig = plt.gcf()
                 fig.set_size_inches(4.5, 4.5)
                 fig.tight_layout()
-                fig.savefig(f"{configs.root}/confusion.png")
+                fig.savefig(f"{configs.root}/confusion.png", dpi=600)
                 plt.close()
 
                 torch.save(eval_simclr.get_ckpt(), f"{configs.root}/best.pth")

@@ -5,7 +5,7 @@ dataset: nfs
 dataset_location: /scratch_nvme/jakobj/multimag
 batch_size: 64
 workers: 2
-epochs: 50
+epochs: 30
 lr_schedule: exponential
 lr_gamma: 0.97
 lr: 0.001
@@ -13,5 +13,5 @@ weight_decay: 0
 optimizer: adam
 multi_mag_majority_vote: True
 drop_classes: []
-transforms: [center_crop, normalize, magnification]
-gpus: [0]
+transforms: [random_crop, normalize, magnification]
+gpus: [2]
