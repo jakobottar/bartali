@@ -67,33 +67,31 @@ def prepare_dataloaders(rank: int, world_size: int, configs):
             )
 
         case "nfs":
-            # Note: these strong transforms are needed at test time for good accuracy
             image_size = 256
-            transform = [transforms.ToTensor()]
-            if "horiz_flip" in configs.transforms:
-                transform.append(transforms.RandomHorizontalFlip())
-            if "vert_flip" in configs.transforms:
-                transform.append(transforms.RandomVerticalFlip())
-            if "color_jitter" in configs.transforms:
-                transform.append(transforms.ColorJitter(brightness=0.5))
-            if "random_crop" in configs.transforms:
-                transform.append(transforms.RandomCrop(image_size))
-            if "random_resized_crop" in configs.transforms:
-                transform.append(transforms.RandomResizedCrop(image_size))
-            if "center_crop" in configs.transforms:
-                transform.append(transforms.CenterCrop(image_size))
-            if "normalize" in configs.transforms:
-                # TODO: check if right vals
-                transform.append(
-                    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-                )
+            train_transform = transforms.Compose(
+                [
+                    transforms.RandomHorizontalFlip(),
+                    transforms.RandomVerticalFlip(),
+                    # transforms.ColorJitter(brightness=0.5),
+                    transforms.RandomResizedCrop(image_size),
+                    transforms.ToTensor(),
+                    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+                ]
+            )
 
-            transform = transforms.Compose(transform)
+            val_transform = transforms.Compose(
+                [
+                    transforms.CenterCrop(image_size),
+                    transforms.ToTensor(),
+                    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+                ]
+            )
 
+            # OOD_CLASSES = ["UO3AUC", "U3O8MDU"]
             train_dataset = MagImageDataset(
                 configs.dataset_location,
                 split="train",
-                transform=transform,
+                transform=train_transform,
                 get_all_mag=False,
                 no_mag=("magnification" not in configs.transforms),
                 ood_classes=configs.drop_classes,
@@ -103,7 +101,7 @@ def prepare_dataloaders(rank: int, world_size: int, configs):
             test_dataset = MagImageDataset(
                 configs.dataset_location,
                 split="test",
-                transform=transform,
+                transform=val_transform,
                 get_all_mag=configs.multi_mag_majority_vote,
                 no_mag=("magnification" not in configs.transforms),
                 fold=configs.fold_num,
