@@ -13,5 +13,5 @@ weight_decay: 0
 optimizer: adam
 multi_mag_majority_vote: True
 drop_classes: []
-transforms: [random_crop, normalize, magnification]
-gpus: [2]
+gpus: [0]
+port: 1234
