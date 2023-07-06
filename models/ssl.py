@@ -29,7 +29,7 @@ ROUTES = [
     "SDU-UO2",
     "ADU-UO3",
     "AUC-UO3",
-    "UHU-UO3",
+    "UH-UO3",
     "SDU-UO3",
 ]
 
