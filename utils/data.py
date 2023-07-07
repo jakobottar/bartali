@@ -50,14 +50,24 @@ class MagImageDataset(Dataset):
     ) -> None:
         super().__init__()
         match split:
-            case "train":
+            case "train_full":
                 with open(
                     os.path.join(root, f"full_train_{fold}.json"), "r", encoding="utf-8"
                 ) as f:
                     self.df = json.load(f)
-            case "test" | "val":
+            case "test_full" | "val_full":
                 with open(
                     os.path.join(root, f"full_train_{fold}.json"), "r", encoding="utf-8"
+                ) as f:
+                    self.df = json.load(f)
+            case "train_nova":
+                with open(
+                    os.path.join(root, f"nova_train_{fold}.json"), "r", encoding="utf-8"
+                ) as f:
+                    self.df = json.load(f)
+            case "test_nova" | "val_nova":
+                with open(
+                    os.path.join(root, f"nova_train_{fold}.json"), "r", encoding="utf-8"
                 ) as f:
                     self.df = json.load(f)
             case _:
@@ -126,55 +136,6 @@ class MagImageDataset(Dataset):
         return image, sample["route_int"]
 
 
-class OODDataset(Dataset):
-    def __init__(
-        self,
-        root: str,
-        transform=None,
-        get_all_mag: bool = False,
-        random_noise: bool = False,
-    ) -> None:
-        raise NotImplementedError
-        super().__init__()
-        self.df = pd.read_csv(f"{root}/ood.csv")
-        self.transform = transform
-        self.all_mag = get_all_mag
-        self.random_noise = random_noise
-        self.root = os.path.join(root)
-
-    def __len__(self):
-        return len(self.df)
-
-    def __getitem__(self, idx):
-        if self.random_noise:
-            pass
-        else:
-            files = self.df.iloc[idx].dropna().values
-
-            # get all magnifications
-            if self.all_mag:
-                image = []
-                for filepath in files:
-                    filepath = os.path.join(self.root, filepath)
-                    image_mag = Image.open(filepath).convert("RGB")
-
-                    if self.transform:
-                        image_mag = self.transform(image_mag)
-
-                    image.append(image_mag)
-
-            # get a random magnification
-            else:
-                rand_view = random.randint(0, len(files[rand_view]) - 1)
-                image_path = os.path.join(self.root, files[rand_view])
-                image = Image.open(image_path).convert("RGB")
-
-                if self.transform:
-                    image = self.transform(image)
-
-        return image
-
-
 if __name__ == "__main__":
     from torch.utils.data import DataLoader
     from torchvision import transforms
@@ -192,7 +153,7 @@ if __name__ == "__main__":
 
     dataset = MagImageDataset(
         "/scratch_nvme/jakobj/multimag",
-        split="train",
+        split="train_nova",
         transform=transform,
         get_all_views=True,
         drop_classes=["UO3AUC", "U3O8MDU"],
@@ -204,7 +165,7 @@ if __name__ == "__main__":
         dataset,
         pin_memory=True,
         num_workers=2,
-        batch_sampler=BatchSampler(sampler, batch_size=1, drop_last=False),
+        batch_sampler=BatchSampler(sampler, batch_size=2, drop_last=False),
     )
 
     print(len(dataset))

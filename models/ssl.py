@@ -141,16 +141,7 @@ class EvalSimCLR(Trainer):
         self.encoder.to(self.device)
         self.freeze_encoder()
 
-        # push torch.ones through the model to get input size
-        match self.configs.dataset:
-            case "cifar":
-                n_classes = 10
-            case "nfs":
-                n_classes = 16
-            case _:
-                raise NotImplementedError(
-                    f"Cound not load dataset {self.configs.dataset}."
-                )
+        n_classes = 16
 
         # build a non-linear classification head
         model = [

@@ -1,7 +1,7 @@
 arch: resnet50
 name: random
 chkpt_file: ./model.pth
-dataset: nfs
+dataset: nova
 dataset_location: /scratch_nvme/jakobj/multimag
 batch_size: 64
 workers: 2
