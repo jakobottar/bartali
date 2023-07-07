@@ -2,6 +2,7 @@
 data utils
 """
 
+import json
 import os
 import random
 
@@ -25,8 +26,6 @@ ROUTES = [
     "UO3SDU",
 ]
 
-MAGS = ["10000x", "25000x", "50000x", "100000x"]
-
 
 class MultiplyBatchSampler(BatchSampler):
     multiplier = 2
@@ -44,33 +43,34 @@ class MagImageDataset(Dataset):
         root: str,
         split: str = "train",
         transform=None,
-        get_all_mag: bool = False,
-        no_mag: bool = False,
-        ood_classes=[],
+        get_all_views: bool = False,
+        ignore_views: bool = False,
+        drop_classes=[],
         fold=0,
     ) -> None:
         super().__init__()
         match split:
             case "train":
-                self.df = pd.read_csv(os.path.join(root, f"train_{fold}.csv"))
-                self.df = self.df[self.df.label.isin(ood_classes) == False]
+                with open(
+                    os.path.join(root, f"full_train_{fold}.json"), "r", encoding="utf-8"
+                ) as f:
+                    self.df = json.load(f)
             case "test" | "val":
-                self.df = pd.read_csv(os.path.join(root, f"val_{fold}.csv"))
-                self.df = self.df[self.df.label.isin(ood_classes) == False]
-            case "ood":
-                train_half = pd.read_csv(os.path.join(root, f"train_{fold}.csv"))
-                val_half = pd.read_csv(os.path.join(root, f"val_{fold}.csv"))
-                self.df = pd.concat([train_half, val_half])
-                self.df = self.df[self.df.label.isin(ood_classes)]
+                with open(
+                    os.path.join(root, f"full_train_{fold}.json"), "r", encoding="utf-8"
+                ) as f:
+                    self.df = json.load(f)
             case _:
                 raise ValueError(
                     "Not a valid split, try 'train', 'test', 'val', or 'ood'"
                 )
-        self.df = self.df.reset_index()
+
+        # TODO: filter df
 
         # ignore magnification, concat dataframe
-        self.no_mag = no_mag
-        if no_mag:
+        self.ignore_views = ignore_views
+        if ignore_views:
+            raise NotImplementedError
             if get_all_mag:
                 print("Warning: `get_all_mag` is overridden by `no_mag`!")
 
@@ -83,29 +83,30 @@ class MagImageDataset(Dataset):
 
         self.split = split
         self.transform = transform
-        self.all_mag = get_all_mag
+        self.get_all_views = get_all_views
         self.root = os.path.join(root)
 
     def __len__(self):
         return len(self.df)
 
     def __getitem__(self, idx):
-        row = self.df.loc[idx].to_dict()
-        row["label_int"] = int(ROUTES.index(row["label"]))
+        sample = self.df[idx]
+        sample["route_int"] = int(ROUTES.index(sample["route"]))
 
         # ignores magnification
-        if self.no_mag:
-            image_path = os.path.join(self.root, row["filename"])
+        if self.ignore_views:
+            raise NotImplementedError
+            image_path = os.path.join(self.root, sample["filename"])
             image = Image.open(image_path).convert("RGB")
 
             if self.transform:
                 image = self.transform(image)
 
-        # get all magnifications
-        elif self.all_mag:
+        # get all views
+        elif self.get_all_views:
             image = []
-            for mag in range(4):
-                image_path = os.path.join(self.root, row[MAGS[mag]])
+            for file in sample["files"]:
+                image_path = os.path.join(self.root, file)
                 image_mag = Image.open(image_path).convert("RGB")
 
                 if self.transform:
@@ -113,19 +114,15 @@ class MagImageDataset(Dataset):
 
                 image.append(image_mag)
 
-        # get a random magnification
+        # get a random view
         else:
-            rand_mag = random.randint(0, 3)
-            image_path = os.path.join(self.root, row[MAGS[rand_mag]])
+            image_path = os.path.join(self.root, random.choice(sample["files"]))
             image = Image.open(image_path).convert("RGB")
 
             if self.transform:
                 image = self.transform(image)
 
-        if self.split == "ood":
-            return image
-
-        return image, row["label_int"]
+        return image, sample["route_int"]
 
 
 class OODDataset(Dataset):
@@ -136,6 +133,7 @@ class OODDataset(Dataset):
         get_all_mag: bool = False,
         random_noise: bool = False,
     ) -> None:
+        raise NotImplementedError
         super().__init__()
         self.df = pd.read_csv(f"{root}/ood.csv")
         self.transform = transform
@@ -166,8 +164,8 @@ class OODDataset(Dataset):
 
             # get a random magnification
             else:
-                rand_mag = random.randint(0, len(files) - 1)
-                image_path = os.path.join(self.root, files[rand_mag])
+                rand_view = random.randint(0, len(files[rand_view]) - 1)
+                image_path = os.path.join(self.root, files[rand_view])
                 image = Image.open(image_path).convert("RGB")
 
                 if self.transform:
@@ -192,11 +190,11 @@ if __name__ == "__main__":
     )
 
     dataset = MagImageDataset(
-        "/nvmescratch/jakobj/multimag",
-        split="ood",
+        "/scratch_nvme/jakobj/multimag",
+        split="train",
         transform=transform,
-        get_all_mag=True,
-        ood_classes=["UO3AUC", "U3O8MDU"],
+        get_all_views=True,
+        # ood_classes=["UO3AUC", "U3O8MDU"],
     )
 
     sampler = RandomSampler(dataset)
@@ -205,7 +203,8 @@ if __name__ == "__main__":
         dataset,
         pin_memory=True,
         num_workers=2,
-        batch_sampler=BatchSampler(sampler, batch_size=64, drop_last=False),
+        batch_sampler=BatchSampler(sampler, batch_size=1, drop_last=False),
     )
 
     print(len(dataset))
+    print(next(iter(dataloader)))

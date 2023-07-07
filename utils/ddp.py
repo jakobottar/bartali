@@ -79,14 +79,13 @@ def prepare_dataloaders(rank: int, world_size: int, configs):
                 ]
             )
 
-            # OOD_CLASSES = ["UO3AUC", "U3O8MDU"]
             train_dataset = MagImageDataset(
                 configs.dataset_location,
                 split="train",
                 transform=transform,
-                get_all_mag=False,
-                no_mag=("magnification" not in configs.transforms),
-                ood_classes=configs.drop_classes,
+                get_all_views=False,
+                ignore_views=("magnification" not in configs.transforms),
+                drop_classes=configs.drop_classes,
                 fold=configs.fold_num,
             )
 
@@ -94,8 +93,8 @@ def prepare_dataloaders(rank: int, world_size: int, configs):
                 configs.dataset_location,
                 split="test",
                 transform=transform,
-                get_all_mag=configs.multi_mag_majority_vote,
-                no_mag=("magnification" not in configs.transforms),
+                get_all_views=configs.multi_mag_majority_vote,
+                ignore_views=("magnification" not in configs.transforms),
                 fold=configs.fold_num,
             )
 
