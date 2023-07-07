@@ -65,7 +65,8 @@ class MagImageDataset(Dataset):
                     "Not a valid split, try 'train', 'test', 'val', or 'ood'"
                 )
 
-        # TODO: filter df
+        # filter df
+        self.df = [s for s in self.df if s["route"] not in drop_classes]
 
         # ignore magnification, concat dataframe
         self.ignore_views = ignore_views
@@ -194,7 +195,7 @@ if __name__ == "__main__":
         split="train",
         transform=transform,
         get_all_views=True,
-        # ood_classes=["UO3AUC", "U3O8MDU"],
+        drop_classes=["UO3AUC", "U3O8MDU"],
     )
 
     sampler = RandomSampler(dataset)
