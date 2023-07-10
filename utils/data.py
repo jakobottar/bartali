@@ -57,7 +57,7 @@ class MagImageDataset(Dataset):
                     self.df = json.load(f)
             case "test_full" | "val_full":
                 with open(
-                    os.path.join(root, f"full_train_{fold}.json"), "r", encoding="utf-8"
+                    os.path.join(root, f"full_val_{fold}.json"), "r", encoding="utf-8"
                 ) as f:
                     self.df = json.load(f)
             case "train_nova":
@@ -67,7 +67,7 @@ class MagImageDataset(Dataset):
                     self.df = json.load(f)
             case "test_nova" | "val_nova":
                 with open(
-                    os.path.join(root, f"nova_train_{fold}.json"), "r", encoding="utf-8"
+                    os.path.join(root, f"nova_val_{fold}.json"), "r", encoding="utf-8"
                 ) as f:
                     self.df = json.load(f)
             case _:

@@ -41,12 +41,6 @@ def worker(rank, world_size, configs):
     # set up model
     eval_simclr = models.EvalSimCLR(configs).to_ddp(rank)
 
-    if configs.dataset != "nfs":
-        train_dataloader = eval_simclr.precompute_encodings(train_dataloader)
-        test_dataloader = eval_simclr.precompute_encodings(
-            test_dataloader, shuffle=False
-        )
-
     cudnn.benchmark = True
 
     if rank == 0:
