@@ -5,7 +5,7 @@ import torch
 import torch.distributed as dist
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
-from torchvision import datasets, transforms
+from torchvision import transforms
 
 from .data import MagImageDataset, MultiplyBatchSampler
 
@@ -38,35 +38,7 @@ class Clamp(object):
 
 def prepare_dataloaders(rank: int, world_size: int, configs):
     match configs.dataset:
-        case "cifar":
-            transform = transforms.Compose(
-                [
-                    transforms.RandomResizedCrop(
-                        32,
-                        scale=(0.08, 1.0),
-                        interpolation=transforms.InterpolationMode.BICUBIC,
-                    ),
-                    transforms.RandomHorizontalFlip(),
-                    get_color_distortion(),
-                    transforms.ToTensor(),
-                    Clamp(),
-                ]
-            )
-            train_dataset = datasets.CIFAR10(
-                configs.dataset_location,
-                train=True,
-                download=False,
-                transform=transform,
-            )
-
-            test_dataset = datasets.CIFAR10(
-                configs.dataset_location,
-                train=False,
-                download=False,
-                transform=transform,
-            )
-
-        case "nfs":
+        case "nova":
             image_size = 256
             transform = transforms.Compose(
                 [
@@ -79,23 +51,54 @@ def prepare_dataloaders(rank: int, world_size: int, configs):
                 ]
             )
 
-            # OOD_CLASSES = ["UO3AUC", "U3O8MDU"]
             train_dataset = MagImageDataset(
                 configs.dataset_location,
-                split="train",
+                split="train_nova",
                 transform=transform,
-                get_all_mag=False,
-                no_mag=("magnification" not in configs.transforms),
-                ood_classes=configs.drop_classes,
+                get_all_views=False,
+                ignore_views=("magnification" not in configs.transforms),
+                drop_classes=configs.drop_classes,
                 fold=configs.fold_num,
             )
 
             test_dataset = MagImageDataset(
                 configs.dataset_location,
-                split="test",
+                split="test_nova",
                 transform=transform,
-                get_all_mag=configs.multi_mag_majority_vote,
-                no_mag=("magnification" not in configs.transforms),
+                get_all_views=configs.multi_mag_majority_vote,
+                ignore_views=("magnification" not in configs.transforms),
+                fold=configs.fold_num,
+            )
+
+        case "full":
+            image_size = 256
+            transform = transforms.Compose(
+                [
+                    transforms.RandomHorizontalFlip(),
+                    transforms.RandomVerticalFlip(),
+                    # transforms.ColorJitter(brightness=0.5),
+                    transforms.RandomResizedCrop(image_size),
+                    transforms.ToTensor(),
+                    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+                ]
+            )
+
+            train_dataset = MagImageDataset(
+                configs.dataset_location,
+                split="train_full",
+                transform=transform,
+                get_all_views=False,
+                ignore_views=("magnification" not in configs.transforms),
+                drop_classes=configs.drop_classes,
+                fold=configs.fold_num,
+            )
+
+            test_dataset = MagImageDataset(
+                configs.dataset_location,
+                split="test_full",
+                transform=transform,
+                get_all_views=configs.multi_mag_majority_vote,
+                ignore_views=("magnification" not in configs.transforms),
                 fold=configs.fold_num,
             )
 

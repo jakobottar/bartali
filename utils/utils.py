@@ -10,7 +10,7 @@ class ConfigStruct:
     arch: str = "resnet18"  # resnet18 or resnet50, backbone model architecture
     name: str = "random"  # run name
     chkpt_file: str = "none"  # checkpoint to resume from
-    dataset: str = "cifar"  # dataset
+    dataset: str = "nova"  # dataset
     dataset_location: str = "./data/"  # dataset filepath
     fold_num: int = 0  # data fold num, for nfs
 

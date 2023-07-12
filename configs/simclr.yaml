@@ -1,6 +1,6 @@
 arch: resnet50
 name: random
-dataset: nfs
+dataset: nova
 dataset_location: /scratch_nvme/jakobj/multimag
 batch_size: 400
 workers: 2
@@ -11,6 +11,6 @@ weight_decay: 1.0e-6
 optimizer: lars
 tau: 0.5
 multiplier: 2
-gpus: [0, 1]
+gpus: [0, 3]
 drop_classes: []
 port: 1234

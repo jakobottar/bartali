@@ -141,16 +141,7 @@ class EvalSimCLR(Trainer):
         self.encoder.to(self.device)
         self.freeze_encoder()
 
-        # push torch.ones through the model to get input size
-        match self.configs.dataset:
-            case "cifar":
-                n_classes = 10
-            case "nfs":
-                n_classes = 16
-            case _:
-                raise NotImplementedError(
-                    f"Cound not load dataset {self.configs.dataset}."
-                )
+        n_classes = 16
 
         # build a non-linear classification head
         model = [
@@ -210,8 +201,7 @@ class EvalSimCLR(Trainer):
         return self.encoder(value, out="h")
 
     def step(self, value, target):
-        if self.configs.dataset == "nfs":
-            value = self.encode_step(value)
+        value = self.encode_step(value)
         return super().step(value, target)
 
     # TODO: fix for use with all mags
@@ -303,36 +293,32 @@ class EvalSimCLR(Trainer):
         test_loss, correct = 0, 0
         pred_classes, correct_classes = [], []
         with torch.no_grad():
-            if self.configs.dataset == "nfs":
-                # process test dataset
-                for values, target in iter_test_loader:
-                    if not isinstance(values, list):
-                        values = [values]
+            # process test dataset
+            for values, target in iter_test_loader:
+                if not isinstance(values, list):
+                    values = [values]
 
-                    preds = torch.zeros(
-                        (len(values), target.shape[0]), device=self.device
-                    )  # space for predicted values
-                    for i, value in enumerate(values):
-                        value, target = value.to(self.device), target.to(self.device)
+                preds = torch.zeros(
+                    (len(values), target.shape[0]), device=self.device
+                )  # space for predicted values
+                for i, value in enumerate(values):
+                    value, target = value.to(self.device), target.to(self.device)
 
-                        # do test step
-                        pred, loss = self.test_step(value, target)
+                    # do test step
+                    pred, loss = self.test_step(value, target)
 
-                        # get loss
-                        test_loss += loss.item()
+                    # get loss
+                    test_loss += loss.item()
 
-                        # get prediction
-                        preds[i] = torch.argmax(F.softmax(pred, dim=1), dim=1)
+                    # get prediction
+                    preds[i] = torch.argmax(F.softmax(pred, dim=1), dim=1)
 
-                    preds = torch.mode(preds, dim=0).values
-                    correct += preds.eq(target.view_as(preds)).sum().item()
+                preds = torch.mode(preds, dim=0).values
+                correct += preds.eq(target.view_as(preds)).sum().item()
 
-                    # gather preds and targets for confusion matrix
-                    pred_classes.extend(preds.cpu().numpy())
-                    correct_classes.extend(target.cpu().numpy())
-
-            else:
-                raise NotImplementedError
+                # gather preds and targets for confusion matrix
+                pred_classes.extend(preds.cpu().numpy())
+                correct_classes.extend(target.cpu().numpy())
 
         return {
             "val_loss": test_loss / (len(test_loader) / len(self.configs.gpus)),
@@ -369,5 +355,6 @@ class EvalSimCLR(Trainer):
                 pred_classes.extend(preds.cpu().numpy())
                 correct_classes.extend(target.cpu().numpy())
 
+        print(np.unique(pred_classes), np.unique(correct_classes))
         confusion = confusion_matrix(pred_classes, correct_classes, normalize="true")
         return ConfusionMatrixDisplay(confusion, display_labels=ROUTES)
