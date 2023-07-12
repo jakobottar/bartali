@@ -80,10 +80,12 @@ def worker(rank, world_size, configs):
             if metrics["val_loss"] > best_metric:
                 # TODO: handle cm across multiple threads
                 cm_disp = eval_simclr.create_confusion_matrix(test_dataloader)
-                cm_disp.plot(xticks_rotation=90, colorbar=False, values_format=".0g")
+                cm_disp.confusion_matrix *= 100
+                cm_disp.plot(xticks_rotation=90, colorbar=False, values_format=".1f")
 
                 fig = plt.gcf()
-                fig.set_size_inches(4.5, 4.5)
+                fig.set_size_inches(9, 9)  # use for data-gathering
+                # fig.set_size_inches(5, 5)  # use for print
                 fig.tight_layout()
                 fig.savefig(f"{configs.root}/confusion.png", dpi=600)
                 plt.close()

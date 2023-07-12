@@ -355,6 +355,5 @@ class EvalSimCLR(Trainer):
                 pred_classes.extend(preds.cpu().numpy())
                 correct_classes.extend(target.cpu().numpy())
 
-        print(np.unique(pred_classes), np.unique(correct_classes))
         confusion = confusion_matrix(pred_classes, correct_classes, normalize="true")
         return ConfusionMatrixDisplay(confusion, display_labels=ROUTES)
