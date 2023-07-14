@@ -59,6 +59,7 @@ def prepare_dataloaders(rank: int, world_size: int, configs):
                 ignore_views=("magnification" not in configs.transforms),
                 drop_classes=configs.drop_classes,
                 fold=configs.fold_num,
+                fraction=configs.fraction,
             )
 
             test_dataset = MagImageDataset(

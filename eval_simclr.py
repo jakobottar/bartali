@@ -49,6 +49,7 @@ def worker(rank, world_size, configs):
         mlflow.start_run(run_name=configs.name)
         mlflow.log_params(configs.as_dict())
         best_metric = -9999
+        print(f"length of training dataset: {len(train_dataloader.dataset)}")
 
     # make structures for all_gather
     data = {
@@ -113,6 +114,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("-e", "--epochs", type=int, default=None)
     parser.add_argument("--fold-num", type=int, default=None)
+    parser.add_argument("--fraction", type=float, default=None)
     parser.add_argument("--name", type=str, default=None)
     parser.add_argument("--chkpt-file", type=str, default=None)
     parser.add_argument("--drop-classes", type=str, default=None, nargs="+")

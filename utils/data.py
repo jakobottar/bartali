@@ -47,6 +47,7 @@ class MagImageDataset(Dataset):
         ignore_views: bool = False,
         drop_classes=[],
         fold=0,
+        fraction=1,
     ) -> None:
         super().__init__()
         match split:
@@ -77,6 +78,10 @@ class MagImageDataset(Dataset):
 
         # filter df
         self.df = [s for s in self.df if s["route"] not in drop_classes]
+
+        if fraction < 1.0:
+            random.shuffle(self.df)
+            self.df = self.df[: int(len(self.df) * fraction)]
 
         # ignore magnification, concat dataframe
         self.ignore_views = ignore_views
@@ -157,6 +162,7 @@ if __name__ == "__main__":
         transform=transform,
         get_all_views=True,
         drop_classes=["UO3AUC", "U3O8MDU"],
+        fraction=0.01,
     )
 
     sampler = RandomSampler(dataset)
@@ -165,7 +171,7 @@ if __name__ == "__main__":
         dataset,
         pin_memory=True,
         num_workers=2,
-        batch_sampler=BatchSampler(sampler, batch_size=2, drop_last=False),
+        batch_sampler=BatchSampler(sampler, batch_size=1, drop_last=False),
     )
 
     print(len(dataset))

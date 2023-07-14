@@ -13,6 +13,7 @@ class ConfigStruct:
     dataset: str = "nova"  # dataset
     dataset_location: str = "./data/"  # dataset filepath
     fold_num: int = 0  # data fold num, for nfs
+    fraction: float = 1  # % of dataset to use for training
 
     optimizer: str = "adam"  # optimizer
     batch_size: int = 8  # int, batch size

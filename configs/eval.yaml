@@ -5,7 +5,7 @@ dataset: nova
 dataset_location: /scratch_nvme/jakobj/multimag
 batch_size: 64
 workers: 2
-epochs: 5
+epochs: 30
 lr_schedule: exponential
 lr_gamma: 0.97
 lr: 0.001
