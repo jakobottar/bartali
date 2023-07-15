@@ -27,7 +27,7 @@ class ResNet(Trainer):
             case _:
                 raise NotImplementedError(f"Cound not load model {configs.arch}.")
 
-        n_classes = 16 if configs.dataset == "nfs" else 10
+        n_classes = 12
         self.model.fc = nn.Linear(encoder_dim, n_classes)
 
         self.set_up_optimizers()

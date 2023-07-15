@@ -141,7 +141,7 @@ class EvalSimCLR(Trainer):
         self.encoder.to(self.device)
         self.freeze_encoder()
 
-        n_classes = 16
+        n_classes = 12
 
         # build a non-linear classification head
         model = [
