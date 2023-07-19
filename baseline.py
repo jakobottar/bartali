@@ -5,88 +5,112 @@ import argparse
 import os
 import random
 import shutil
-import socket
 import time
 
 import mlflow
 import namegenerator
+import pyxis.torch as pxt
 import torch
 import torch.backends.cudnn as cudnn
-import torch.distributed as dist
-import torch.multiprocessing as mp
+from torch.utils.data import DataLoader
+from torchvision import transforms
 
 import models
 import utils
 
 
-def worker(rank, world_size, configs):
+class TransformTorchDataset(pxt.TorchDataset):
+    def __init__(self, dirpath, transform=None):
+        super().__init__(dirpath)
+        self.transform = transform
+
+    def __getitem__(self, key):
+        data = self.db[key]
+        for k in data.keys():
+            data[k] = torch.from_numpy(data[k])
+
+        if self.transform:
+            data["image"] = self.transform(data["image"].to(torch.float))
+
+        return data["image"], data["label"]
+
+
+def worker(configs):
     """
     single worker function
     """
-    print(
-        f"===> launched proc {rank}/{world_size}@{socket.gethostname()}",
-        flush=True,
-    )
-    # setup the process groups
-    utils.setup(rank, world_size, configs.port)
-    # set device (for all_gather)
-    torch.cuda.set_device(configs.gpus[rank])
 
     # prepare the dataloader
-    train_dataloader, test_dataloader = utils.prepare_dataloaders(
-        rank, world_size, configs
+    image_size = 256
+    transform = transforms.Compose(
+        [
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomVerticalFlip(),
+            # transforms.ColorJitter(brightness=0.5),
+            transforms.RandomResizedCrop(image_size),
+            # transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+        ]
+    )
+
+    train_dataset = TransformTorchDataset(
+        f"/scratch_nvme/jakobj/multimag/lmdb/{configs.dataset}_train_{configs.fold_num}",
+        transform=transform,
+    )
+    test_dataset = TransformTorchDataset(
+        f"/scratch_nvme/jakobj/multimag/lmdb/{configs.dataset}_val_{configs.fold_num}",
+        transform=transform,
+    )
+
+    train_dataloader = DataLoader(
+        train_dataset,
+        pin_memory=True,
+        num_workers=configs.workers,
+        batch_size=configs.batch_size,
+    )
+
+    test_dataloader = DataLoader(
+        test_dataset,
+        pin_memory=True,
+        num_workers=configs.workers,
+        batch_size=configs.batch_size,
     )
 
     # set up model
-    resnet = models.ResNet(configs).to_ddp(rank)
+    resnet = models.ResNet(configs).to("cuda")
 
     cudnn.benchmark = True
 
-    if rank == 0:
-        mlflow.set_tracking_uri("http://tularosa.sci.utah.edu:5000")
-        mlflow.set_experiment("bartali-artifacts")
-        mlflow.start_run(run_name=configs.name)
-        mlflow.log_params(configs.as_dict())
-        best_metric = -9999
-
-    # make structures for all_gather
-    data = {
-        "train_stats": None,
-        "test_stats": None,
-    }
-    outputs = [None for _ in range(world_size)]
+    mlflow.set_tracking_uri("http://tularosa.sci.utah.edu:5000")
+    mlflow.set_experiment("bartali-artifacts")
+    mlflow.start_run(run_name=configs.name)
+    mlflow.log_params(configs.as_dict())
+    best_metric = -9999
 
     for epoch in range(1, configs.epochs + 1):
-        if rank == 0:
-            print(f"epoch {epoch} of {configs.epochs} ", end="")
-            start_time = time.time()
+        print(f"epoch {epoch} of {configs.epochs} ", end="")
+        start_time = time.time()
 
-        data["train_stats"] = resnet.train_epoch(train_dataloader, verbose=False)
-        data["test_stats"] = resnet.test_epoch(test_dataloader, verbose=False)
+        train_stats = resnet.train_epoch(train_dataloader, verbose=False)
+        test_stats = resnet.test_epoch(test_dataloader, verbose=False)
 
-        dist.all_gather_object(outputs, data)
-
-        if rank == 0:
-            metrics = utils.roll_objects(outputs)
-            mlflow.log_metrics(metrics, step=epoch)
-            mlflow.log_metric(
-                "learning_rate", resnet.scheduler.get_last_lr()[0], step=epoch
-            )
-            if metrics["val_acc"] > best_metric:
-                torch.save(resnet.get_ckpt(), f"{configs.root}/best.pth")
-            print(f"{time.time() - start_time:.2f} sec")
+        metrics = {**train_stats, **test_stats}
+        mlflow.log_metrics(metrics, step=epoch)
+        mlflow.log_metric(
+            "learning_rate", resnet.scheduler.get_last_lr()[0], step=epoch
+        )
+        if metrics["val_acc"] > best_metric:
+            torch.save(resnet.get_ckpt(), f"{configs.root}/best.pth")
+        print(f"{time.time() - start_time:.2f} sec")
 
         resnet.scheduler.step()
 
-    if rank == 0:
-        # torch.save(resnet.get_ckpt(), f"{configs.root}/last.pth")
-        mlflow.pytorch.log_model(
-            resnet.get_model(), "model", pip_requirements="requirements.txt"
-        )
-        mlflow.log_artifacts(configs.root)
+    mlflow.pytorch.log_model(
+        resnet.get_model(), "model", pip_requirements="requirements.txt"
+    )
+    mlflow.log_artifacts(configs.root)
 
     print("done!")
-    utils.cleanup()
 
 
 if __name__ == "__main__":
@@ -121,6 +145,4 @@ if __name__ == "__main__":
     configs.root = f"{configs.root}/{configs.name}"
     shutil.copy(args.config, os.path.join(configs.root, "config.yaml"))
 
-    world_size = len(configs.gpus)
-
-    mp.spawn(worker, args=(world_size, configs), nprocs=world_size, join=True)
+    worker(configs=configs)

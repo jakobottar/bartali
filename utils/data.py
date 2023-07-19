@@ -6,6 +6,7 @@ import json
 import os
 import random
 
+import numpy as np
 import pandas as pd
 from PIL import Image
 from torch.utils.data import Dataset
@@ -137,6 +138,7 @@ class MagImageDataset(Dataset):
 
             if self.transform:
                 image = self.transform(image)
+                print(image.type())
 
         return image, sample["route_int"]
 
