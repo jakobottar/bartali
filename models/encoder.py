@@ -31,6 +31,19 @@ class EncodeProject(nn.Module):
 
         self.convnet = torch.nn.Sequential(*(list(self.convnet.children())[:-1]))
 
+        self.squeeze = nn.Sequential(
+            OrderedDict(
+                [
+                    ("1024d", nn.Linear(self.encoder_dim, 1024)),
+                    ("bn", nn.BatchNorm1d(1024)),
+                    ("relu", nn.ReLU()),
+                    ("unitnorm", nn.LayerNorm(1024, elementwise_affine=False)),
+                ]
+            )
+        )
+
+        self.encoder_dim = 1024
+
         self.proj_dim = 128
         projection_layers = [
             ("fc1", nn.Linear(self.encoder_dim, self.encoder_dim, bias=False)),
@@ -46,6 +59,7 @@ class EncodeProject(nn.Module):
     def forward(self, x, out="z"):
         h = self.convnet(x)
         h = self.flatten(h)
+        h = self.squeeze(h)
         if out == "h":
             return h
         return self.projection(h)

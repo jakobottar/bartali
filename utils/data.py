@@ -7,6 +7,7 @@ import os
 import random
 
 import pandas as pd
+import torch
 from PIL import Image
 from torch.utils.data import Dataset
 from torch.utils.data.sampler import BatchSampler, RandomSampler
@@ -141,28 +142,46 @@ class MagImageDataset(Dataset):
         return image, sample["route_int"]
 
 
+def batch_mean_and_sd(loader):
+    """
+    https://www.binarystudy.com/2022/04/how-to-normalize-image-dataset-inpytorch.html
+    """
+    cnt = 0
+    fst_moment = torch.empty(3)
+    snd_moment = torch.empty(3)
+
+    for images, _ in loader:
+        b, c, h, w = images.shape
+        nb_pixels = b * h * w
+        sum_ = torch.sum(images, dim=[0, 2, 3])
+        sum_of_square = torch.sum(images**2, dim=[0, 2, 3])
+        fst_moment = (cnt * fst_moment + sum_) / (cnt + nb_pixels)
+        snd_moment = (cnt * snd_moment + sum_of_square) / (cnt + nb_pixels)
+        cnt += nb_pixels
+
+    mean, std = fst_moment, torch.sqrt(snd_moment - fst_moment**2)
+    return mean, std
+
+
 if __name__ == "__main__":
     from torch.utils.data import DataLoader
     from torchvision import transforms
 
     transform = transforms.Compose(
         [
-            transforms.RandomResizedCrop(
-                256,
-                scale=(0.08, 1.0),
-                interpolation=transforms.InterpolationMode.BICUBIC,
-            ),
+            # transforms.RandomResizedCrop(
+            #     256,
+            #     scale=(0.08, 1.0),
+            #     interpolation=transforms.InterpolationMode.BICUBIC,
+            # ),
             transforms.ToTensor(),
         ]
     )
 
     dataset = MagImageDataset(
         "/scratch_nvme/jakobj/multimag",
-        split="train_nova",
+        split="train_full",
         transform=transform,
-        get_all_views=True,
-        drop_classes=["UO3AUC", "U3O8MDU"],
-        fraction=0.01,
     )
 
     sampler = RandomSampler(dataset)
@@ -174,5 +193,5 @@ if __name__ == "__main__":
         batch_sampler=BatchSampler(sampler, batch_size=1, drop_last=False),
     )
 
-    print(len(dataset))
-    print(next(iter(dataloader)))
+    mean, std = batch_mean_and_sd(dataloader)
+    print("mean and std: \n", mean, std)

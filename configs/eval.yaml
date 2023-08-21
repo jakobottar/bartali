@@ -5,7 +5,7 @@ dataset: nova
 dataset_location: /scratch_nvme/jakobj/multimag
 batch_size: 64
 workers: 2
-epochs: 30
+epochs: 1
 lr_schedule: exponential
 lr_gamma: 0.97
 lr: 0.001
@@ -13,5 +13,5 @@ weight_decay: 0
 optimizer: adam
 multi_mag_majority_vote: True
 drop_classes: []
-gpus: [0]
+gpus: [3]
 port: 1234
