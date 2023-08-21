@@ -45,9 +45,11 @@ def prepare_dataloaders(rank: int, world_size: int, configs):
                     transforms.RandomHorizontalFlip(),
                     transforms.RandomVerticalFlip(),
                     # transforms.ColorJitter(brightness=0.5),
-                    transforms.RandomResizedCrop(image_size),
+                    transforms.RandomCrop(image_size),
                     transforms.ToTensor(),
-                    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+                    transforms.Normalize(
+                        [0.3920, 0.3920, 0.3920], [0.2237, 0.2237, 0.2237]
+                    ),
                 ]
             )
 
@@ -80,7 +82,9 @@ def prepare_dataloaders(rank: int, world_size: int, configs):
                     # transforms.ColorJitter(brightness=0.5),
                     transforms.RandomResizedCrop(image_size),
                     transforms.ToTensor(),
-                    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+                    transforms.Normalize(
+                        [0.3920, 0.3920, 0.3920], [0.2237, 0.2237, 0.2237]
+                    ),
                 ]
             )
 

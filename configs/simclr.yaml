@@ -2,15 +2,15 @@ arch: resnet50
 name: random
 dataset: nova
 dataset_location: /scratch_nvme/jakobj/multimag
-batch_size: 400
+batch_size: 200
 workers: 2
-epochs: 1000
+epochs: 1
 lr_schedule: cosine-anneal
 lr: 1.
 weight_decay: 1.0e-6
 optimizer: lars
 tau: 0.5
 multiplier: 2
-gpus: [0, 3]
+gpus: [3]
 drop_classes: []
 port: 1234
