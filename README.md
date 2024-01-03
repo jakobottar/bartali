@@ -1,6 +1,6 @@
 # bartali
 
-Code Repo for "Improving uranium oxide pathway discernment and generalizability using contrastive self-supervised learning", by Johnson et al. 2024. 
+Code Repo for "Improving uranium oxide pathway discernment and generalizability using contrastive self-supervised learning", by Johnson et al. 2024 ([link](https://doi.org/10.1016/j.commatsci.2023.112748)).
 
 The SimCLR implementation draws from this repo: [SimCLR Pytorch](https://github.com/AndrewAtanov/simclr-pytorch)
 
