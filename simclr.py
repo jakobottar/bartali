@@ -33,9 +33,7 @@ def worker(rank, world_size, configs):
     torch.cuda.set_device(configs.gpus[rank])
 
     # prepare the dataloader
-    train_dataloader, test_dataloader = utils.prepare_dataloaders(
-        rank, world_size, configs
-    )
+    train_dataloader, test_dataloader = utils.prepare_dataloaders(rank, world_size, configs)
 
     # set up model
     simclr = models.SimCLR(configs).to_ddp(rank)
@@ -44,7 +42,7 @@ def worker(rank, world_size, configs):
 
     if rank == 0:
         mlflow.set_tracking_uri("http://tularosa.sci.utah.edu:5000")
-        mlflow.set_experiment("bartali-artifacts")
+        mlflow.set_experiment("bartali")
         mlflow.start_run(run_name=configs.name)
         mlflow.log_params(configs.as_dict())
         best_metric = 9999
@@ -66,18 +64,14 @@ def worker(rank, world_size, configs):
         if rank == 0:
             metrics = utils.roll_objects(outputs)
             mlflow.log_metrics(metrics, step=epoch)
-            mlflow.log_metric(
-                "learning_rate", simclr.scheduler.get_last_lr()[0], step=epoch
-            )
+            mlflow.log_metric("learning_rate", simclr.scheduler.get_last_lr()[0], step=epoch)
             if metrics["val_loss"] < best_metric:
                 torch.save(simclr.get_ckpt(), f"{configs.root}/best.pth")
             print(f"{time.time() - start_time:.2f} sec")
 
     if rank == 0:
         torch.save(simclr.get_ckpt(), f"{configs.root}/last.pth")
-        mlflow.pytorch.log_model(
-            simclr.get_model(), "model", pip_requirements="requirements.txt"
-        )
+        mlflow.pytorch.log_model(simclr.get_model(), "model", pip_requirements="requirements.txt")
         mlflow.log_artifacts(configs.root)
 
     dist.barrier()
@@ -88,9 +82,7 @@ def worker(rank, world_size, configs):
 if __name__ == "__main__":
     # parse args/config file
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "-c", "--config", type=str, default=None, help="config file location"
-    )
+    parser.add_argument("-c", "--config", type=str, default=None, help="config file location")
     parser.add_argument("-e", "--epochs", type=int, default=None)
     parser.add_argument("--fold-num", type=int, default=None)
     parser.add_argument("--name", type=str, default=None)
