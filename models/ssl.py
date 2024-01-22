@@ -176,9 +176,7 @@ class EvalSimCLR(Trainer):
         for param in self.encoder.parameters():
             param.requires_grad = True
 
-        self.optimizer.add_param_group(
-            {"params": self.encoder.parameters(), "lr": 1e-4}
-        )
+        self.optimizer.add_param_group({"params": self.encoder.parameters(), "lr": 1e-4})
 
     def eval(self) -> None:
         self.model.eval()
@@ -298,9 +296,7 @@ class EvalSimCLR(Trainer):
                 if not isinstance(values, list):
                     values = [values]
 
-                preds = torch.zeros(
-                    (len(values), target.shape[0]), device=self.device
-                )  # space for predicted values
+                preds = torch.zeros((len(values), target.shape[0]), device=self.device)  # space for predicted values
                 for i, value in enumerate(values):
                     value, target = value.to(self.device), target.to(self.device)
 
@@ -336,9 +332,7 @@ class EvalSimCLR(Trainer):
                 if not isinstance(values, list):
                     values = [values]
 
-                preds = torch.zeros(
-                    (len(values), target.shape[0]), device=self.device
-                )  # space for predicted values
+                preds = torch.zeros((len(values), target.shape[0]), device=self.device)  # space for predicted values
                 for i, value in enumerate(values):
                     value, target = value.to(self.device), target.to(self.device)
 
@@ -356,4 +350,4 @@ class EvalSimCLR(Trainer):
                 correct_classes.extend(target.cpu().numpy())
 
         confusion = confusion_matrix(pred_classes, correct_classes, normalize="true")
-        return ConfusionMatrixDisplay(confusion, display_labels=ROUTES)
+        return ConfusionMatrixDisplay(confusion, display_labels=range(10))

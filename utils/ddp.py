@@ -5,15 +5,19 @@ import torch
 import torch.distributed as dist
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
-from torchvision import transforms
+from torchvision import datasets, transforms
 
 from .data import MagImageDataset, MultiplyBatchSampler
 
+norm_dict = {
+    "cifar10": {"mean": [0.4914, 0.4822, 0.4465], "std": [0.2470, 0.2435, 0.2616]},
+    "cifar100": {"mean": [0.5071, 0.4867, 0.4408], "std": [0.2675, 0.2565, 0.2761]},
+    "nfs": {"mean": [0.485, 0.456, 0.406], "std": [0.229, 0.224, 0.225]},
+}
+
 
 def setup(rank, world_size, port="1234"):
-    dist.init_process_group(
-        "nccl", rank=rank, world_size=world_size, init_method=f"tcp://127.0.0.1:{port}"
-    )
+    dist.init_process_group("nccl", rank=rank, world_size=world_size, init_method=f"tcp://127.0.0.1:{port}")
 
 
 def cleanup():
@@ -38,6 +42,32 @@ class Clamp(object):
 
 def prepare_dataloaders(rank: int, world_size: int, configs):
     match configs.dataset:
+        case "cifar10":
+            image_size = 32
+            transform = transforms.Compose(
+                [
+                    transforms.RandomHorizontalFlip(),
+                    transforms.RandomVerticalFlip(),
+                    transforms.RandomResizedCrop(image_size),
+                    transforms.ToTensor(),
+                    transforms.Normalize(norm_dict["cifar10"]["mean"], norm_dict["cifar10"]["std"]),
+                ]
+            )
+
+            train_dataset = datasets.CIFAR10(
+                configs.dataset_location,
+                train=True,
+                download=True,
+                transform=transform,
+            )
+
+            test_dataset = datasets.CIFAR10(
+                configs.dataset_location,
+                train=False,
+                download=True,
+                transform=transform,
+            )
+
         case "nova":
             image_size = 256
             transform = transforms.Compose(
@@ -47,7 +77,7 @@ def prepare_dataloaders(rank: int, world_size: int, configs):
                     # transforms.ColorJitter(brightness=0.5),
                     transforms.RandomResizedCrop(image_size),
                     transforms.ToTensor(),
-                    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+                    transforms.Normalize(norm_dict["nfs"]["mean"], norm_dict["nfs"]["std"]),
                 ]
             )
 
@@ -80,7 +110,7 @@ def prepare_dataloaders(rank: int, world_size: int, configs):
                     # transforms.ColorJitter(brightness=0.5),
                     transforms.RandomResizedCrop(image_size),
                     transforms.ToTensor(),
-                    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+                    transforms.Normalize(norm_dict["nfs"]["mean"], norm_dict["nfs"]["std"]),
                 ]
             )
 

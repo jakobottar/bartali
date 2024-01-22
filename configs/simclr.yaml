@@ -1,7 +1,7 @@
 arch: resnet50
 name: random
-dataset: nova
-dataset_location: /scratch_nvme/jakobj/multimag
+dataset: cifar10
+dataset_location: /scratch/jakobj/torchdata
 batch_size: 400
 workers: 2
 epochs: 1000
@@ -11,6 +11,6 @@ weight_decay: 1.0e-6
 optimizer: lars
 tau: 0.5
 multiplier: 2
-gpus: [0, 3]
+gpus: [0,1]
 drop_classes: []
 port: 1234
