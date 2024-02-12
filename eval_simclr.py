@@ -92,7 +92,7 @@ def worker(rank, world_size, configs):
 
     if rank == 0:
         torch.save(eval_simclr.get_ckpt(), f"{configs.root}/last.pth")
-        mlflow.pytorch.log_model(eval_simclr.get_model(), "model", pip_requirements="requirements.txt")
+        mlflow.pytorch.log_model(eval_simclr.get_model(), "model", conda_env="env.yml")
         mlflow.log_artifacts(configs.root)
 
     dist.barrier()

@@ -48,7 +48,7 @@ def prepare_dataloaders(rank: int, world_size: int, configs):
                 [
                     transforms.RandomHorizontalFlip(),
                     transforms.RandomVerticalFlip(),
-                    transforms.RandomResizedCrop(image_size),
+                    transforms.RandomCrop(image_size),
                     transforms.ToTensor(),
                     transforms.Normalize(norm_dict["cifar10"]["mean"], norm_dict["cifar10"]["std"]),
                 ]
